@@ -6,7 +6,7 @@ export const CONSTRUCT_ACTIVITY_ID = 'construct_structure';
 export const HARVEST_ACTIVITY_ID = 'harvest_crop';
 
 // Natural Spawning Constants
-export const NATURAL_SPAWN_CHANCE = 0.01; // 1% chance per tick to try spawning logic
+export const NATURAL_SPAWN_CHANCE = 0.05; // 1% chance per tick to try spawning logic
 export const NATURAL_GROWTH_RATE = 0.5; // +0.5% growth per tick (~50 seconds to mature)
 
 // Needs Constants (Based on 250ms tick rate = 4 ticks/sec)

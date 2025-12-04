@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import { Structure, Pawn, MAP_SIZE, StructureDefinition } from '../types';
 import { STRUCTURES } from '../constants';
-import { User, Hammer, Utensils, Zap, Box, Brain, TreeDeciduous, Grape, Sprout, Wheat, Carrot, Mountain, Axe, Pickaxe, Scissors, Gamepad2, Swords } from 'lucide-react';
+import { UserRound, Hammer, Utensils, Zap, Box, Brain, TreeDeciduous, Grape, Sprout, Wheat, Carrot, Mountain, Axe, Pickaxe, Scissors, Gamepad2, Swords, Moon, Footprints } from 'lucide-react';
 
 interface GameMapProps {
   structures: Structure[];
@@ -50,7 +50,10 @@ const GameMap: React.FC<GameMapProps> = ({
     switch(jobType) {
         case 'WORK': return <Hammer size={16} className="text-yellow-300 animate-pulse" />;
         case 'WITHDRAW': return <Box size={16} className="text-blue-300" />;
-        default: return <User size={20} className="text-white" />;
+        case 'SLEEP': return <Moon size={16} className="text-purple-300" />;
+        case 'EAT': return <Utensils size={16} className="text-green-300" />;
+        case 'MOVE': return <Footprints size={16} className="text-white/80" />;
+        default: return <UserRound size={20} className="text-white" />;
     }
   };
 
@@ -257,3 +260,4 @@ const GameMap: React.FC<GameMapProps> = ({
 };
 
 export default GameMap;
+    
