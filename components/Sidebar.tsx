@@ -1,8 +1,9 @@
 
+
 import React, { useState } from 'react';
 import { Pawn, Structure, StructureDefinition, SkillType, ActivityDefinition } from '../types';
 import { STRUCTURES, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID } from '../constants';
-import { X, CheckCircle, Activity, Briefcase, Construction, Package, Sprout, Axe, Pickaxe, Scissors } from 'lucide-react';
+import { X, CheckCircle, Activity, Briefcase, Construction, Package, Sprout, Axe, Pickaxe, Scissors, BrickWall, Flame, Utensils, Brain, Hammer, Gamepad2, Swords, Box, Square } from 'lucide-react';
 
 interface SidebarProps {
   selectedPawn: Pawn | undefined;
@@ -41,6 +42,24 @@ const Sidebar: React.FC<SidebarProps> = ({
   const handleSetCommandMode = (mode: 'HARVEST' | 'CHOP' | 'MINE' | null) => {
       setCommandMode(mode);
       if (mode) setBuildMode(null);
+  };
+
+  const getStructureIcon = (def: StructureDefinition) => {
+      const size = 24;
+      switch(def.type) {
+          case 'WOOD_WALL': return <BrickWall size={size} className="text-amber-600" />;
+          case 'STONE_WALL': return <BrickWall size={size} className="text-stone-400" />;
+          case 'STEEL_WALL': return <BrickWall size={size} className="text-slate-400" />;
+          case 'CAMPFIRE': return <Flame size={size} className="text-orange-500" />;
+          case 'BUTCHER_TABLE': return <Utensils size={size} className="text-red-400" />;
+          case 'RESEARCH_BENCH': return <Brain size={size} className="text-blue-400" />;
+          case 'WORKBENCH': return <Hammer size={size} className="text-amber-500" />;
+          case 'CHESS_TABLE': return <Gamepad2 size={size} className="text-gray-300" />;
+          case 'WOODEN_POLE': return <Swords size={size} className="text-amber-300" />;
+          case 'CHEST': return <Box size={size} className="text-amber-700" />;
+          case 'FARM_PLOT': return <Sprout size={size} className="text-green-500" />;
+          default: return <Square size={size} className="text-gray-500" />;
+      }
   };
 
   return (
@@ -117,8 +136,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                   }
                 `}
               >
-                <div className={`w-6 h-6 rounded ${def.color}`}></div>
-                {def.name}
+                {getStructureIcon(def)}
+                <span className="text-center leading-tight">{def.name}</span>
                 
                 {/* Cost Tooltip */}
                 <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white p-2 rounded z-50 whitespace-nowrap border border-gray-600">
