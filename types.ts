@@ -33,6 +33,7 @@ export interface Pawn {
   inventory: Item[];
   maxWeight: number;
   currentJob: Job | null;
+  jobQueue: Job[]; // Queue of future jobs
   status: string; // "Idle", "Moving", "Working"
 }
 
@@ -92,6 +93,13 @@ export interface Job {
   activityRepeats?: number; // Number of times to do the activity
   itemsToHandle?: { itemName: string; quantity: number }[]; // For WITHDRAW/HAUL
   nextJob?: Job; // The job to start immediately after this one finishes
+}
+
+export interface LogEntry {
+    id: string;
+    timestamp: number;
+    message: string;
+    type: 'info' | 'success' | 'warning' | 'error';
 }
 
 export const MAP_SIZE = 25;

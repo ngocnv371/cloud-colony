@@ -1,8 +1,10 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import GameMap from './components/GameMap';
 import Sidebar from './components/Sidebar';
-import { Pawn, Structure, StructureDefinition, Job, SkillType, MAP_SIZE, TICK_RATE_MS, Item } from './types';
+import LogPanel from './components/LogPanel';
+import { Pawn, Structure, StructureDefinition, Job, SkillType, MAP_SIZE, TICK_RATE_MS, Item, LogEntry } from './types';
 import { STRUCTURES, INITIAL_PAWNS, CONSTRUCT_ACTIVITY_ID, CROPS, HARVEST_ACTIVITY_ID } from './constants';
 import { generateRandomPawn } from './services/geminiService';
 
@@ -17,6 +19,7 @@ const App: React.FC = () => {
       inventory: [],
       maxWeight: 35,
       currentJob: null,
+      jobQueue: [],
       status: 'Idle'
     })) as Pawn[]
   );
@@ -48,6 +51,8 @@ const App: React.FC = () => {
       return initialStructures;
   });
   
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+
   // Interaction State
   const [selectedPawnId, setSelectedPawnId] = useState<string | null>(null);
   const [selectedStructureId, setSelectedStructureId] = useState<string | null>(null);
@@ -57,10 +62,20 @@ const App: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
 
   // Refs for Game Loop to access latest state without re-triggering effect
-  const stateRef = useRef({ pawns, structures });
+  const stateRef = useRef({ pawns, structures, logs });
   useEffect(() => {
-    stateRef.current = { pawns, structures };
-  }, [pawns, structures]);
+    stateRef.current = { pawns, structures, logs };
+  }, [pawns, structures, logs]);
+
+  const addLog = (message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
+      const newLog: LogEntry = {
+          id: `log-${Date.now()}-${Math.random()}`,
+          timestamp: Date.now(),
+          message,
+          type
+      };
+      setLogs(prev => [...prev.slice(-49), newLog]); // Keep last 50
+  };
 
   // --- Game Loop ---
   useEffect(() => {
@@ -76,6 +91,18 @@ const App: React.FC = () => {
     
     // Process Pawns
     const nextPawns = currentPawns.map(pawn => {
+        // 1. Check if Idle but has Queue
+        if (!pawn.currentJob && pawn.jobQueue.length > 0) {
+            const nextJob = pawn.jobQueue[0];
+            // addLog(`[${pawn.name}] starting next queued job: ${nextJob.type}`, 'info');
+            return {
+                ...pawn,
+                jobQueue: pawn.jobQueue.slice(1),
+                currentJob: nextJob,
+                status: 'Starting Next Task'
+            };
+        }
+
         if (!pawn.currentJob) return { ...pawn, status: 'Idle' };
 
         const job = pawn.currentJob;
@@ -106,6 +133,7 @@ const App: React.FC = () => {
              // Move to target first
              const targetStructure = currentStructures.find(s => s.id === job.targetStructureId);
              if (!targetStructure) {
+                 addLog(`[${pawn.name}] Job Failed: Target structure missing`, 'error');
                  nextPawn.currentJob = null;
                  nextPawn.status = 'Idle';
                  return nextPawn;
@@ -128,6 +156,7 @@ const App: React.FC = () => {
             // Check if at location
             const targetStructure = currentStructures.find(s => s.id === job.targetStructureId);
             if (!targetStructure) {
+                // Structure might have been destroyed or fully processed by someone else
                 nextPawn.currentJob = null;
                 nextPawn.status = 'Idle';
                 return nextPawn;
@@ -172,6 +201,7 @@ const App: React.FC = () => {
             if (pawn.currentJob?.type === 'WITHDRAW' && pawn.status === 'Withdrawing' && pawn.currentJob.targetStructureId === struct.id) {
                 // Transfer items
                 const needed = pawn.currentJob.itemsToHandle || [];
+                let withdrawnAny = false;
                 needed.forEach(need => {
                     // Find item in structure
                     const itemIndex = nextStruct.inventory.findIndex(i => i.name === need.itemName);
@@ -179,21 +209,29 @@ const App: React.FC = () => {
                         const item = nextStruct.inventory[itemIndex];
                         const amountToTake = Math.min(item.quantity, need.quantity);
                         
-                        // Add to pawn
-                        const pawnItemIndex = pawn.inventory.findIndex(pi => pi.name === need.itemName);
-                        if (pawnItemIndex !== -1) {
-                            finalPawns[pIdx].inventory[pawnItemIndex].quantity += amountToTake;
-                        } else {
-                            finalPawns[pIdx].inventory.push({ ...item, quantity: amountToTake });
-                        }
+                        if (amountToTake > 0) {
+                            // Add to pawn
+                            const pawnItemIndex = pawn.inventory.findIndex(pi => pi.name === need.itemName);
+                            if (pawnItemIndex !== -1) {
+                                finalPawns[pIdx].inventory[pawnItemIndex].quantity += amountToTake;
+                            } else {
+                                finalPawns[pIdx].inventory.push({ ...item, quantity: amountToTake });
+                            }
 
-                        // Remove from structure
-                        item.quantity -= amountToTake;
-                        if (item.quantity <= 0) {
-                            nextStruct.inventory.splice(itemIndex, 1);
+                            // Remove from structure
+                            item.quantity -= amountToTake;
+                            if (item.quantity <= 0) {
+                                nextStruct.inventory.splice(itemIndex, 1);
+                            }
+                            addLog(`[${pawn.name}] picked up ${amountToTake} ${need.itemName}`, 'info');
+                            withdrawnAny = true;
                         }
                     }
                 });
+
+                if (!withdrawnAny && needed.length > 0) {
+                     addLog(`[${pawn.name}] could not find ${needed[0].itemName} in ${STRUCTURES[struct.type].name}`, 'warning');
+                }
 
                 // Advance Pawn Job
                 if (pawn.currentJob.nextJob) {
@@ -206,7 +244,30 @@ const App: React.FC = () => {
             }
         });
 
-        // 2. Handle Timed Activities (WORK)
+        // 2. CRITICAL FIX: Auto-initialize activity if a pawn is here to work
+        if (!nextStruct.currentActivity) {
+             const arrivingWorker = finalPawns.find(p => 
+                p.currentJob?.type === 'WORK' && 
+                p.currentJob.targetStructureId === nextStruct.id &&
+                (p.status === 'Working' || p.status === 'Moving to Work')
+             );
+
+             if (arrivingWorker) {
+                 const dist = Math.abs(arrivingWorker.x - nextStruct.x) + Math.abs(arrivingWorker.y - nextStruct.y);
+                 if (dist <= 2) { 
+                     // Start the job on the structure
+                     nextStruct.currentActivity = {
+                         activityId: arrivingWorker.currentJob!.activityId!,
+                         progress: 0,
+                         workerId: arrivingWorker.id,
+                         repeatsLeft: arrivingWorker.currentJob!.activityRepeats || 1
+                     };
+                     // addLog(`[${arrivingWorker.name}] started ${arrivingWorker.currentJob!.activityId} on ${STRUCTURES[nextStruct.type].name}`, 'info');
+                 }
+             }
+        }
+
+        // 3. Handle Timed Activities (WORK)
         if (nextStruct.currentActivity) {
             // Find worker
             const workerIdx = finalPawns.findIndex(p => p.id === nextStruct.currentActivity?.workerId);
@@ -229,21 +290,35 @@ const App: React.FC = () => {
                     if (newProgress >= 100) {
                         // Check costs again
                         const cost = STRUCTURES[nextStruct.type].cost;
+                        let canAfford = true;
                         cost.forEach(c => {
-                             const idx = worker.inventory.findIndex(i => i.name === c.itemName);
-                             if (idx !== -1) {
-                                 worker.inventory[idx].quantity -= c.amount;
-                                 if (worker.inventory[idx].quantity <= 0) worker.inventory.splice(idx, 1);
-                             }
+                             const idx = worker.inventory.findIndex(i => i.name === c.itemName && i.quantity >= c.amount);
+                             if (idx === -1) canAfford = false;
                         });
-
-                        // Finish Construction
-                        nextStruct.isBlueprint = false;
-                        nextStruct.currentActivity = undefined;
                         
-                        // Reset Worker
-                        finalPawns[workerIdx].currentJob = null;
-                        finalPawns[workerIdx].status = 'Idle';
+                        if (canAfford) {
+                            cost.forEach(c => {
+                                const idx = worker.inventory.findIndex(i => i.name === c.itemName);
+                                if (idx !== -1) {
+                                    worker.inventory[idx].quantity -= c.amount;
+                                    if (worker.inventory[idx].quantity <= 0) worker.inventory.splice(idx, 1);
+                                }
+                            });
+
+                            // Finish Construction
+                            nextStruct.isBlueprint = false;
+                            nextStruct.currentActivity = undefined;
+                            addLog(`[${worker.name}] finished constructing ${STRUCTURES[nextStruct.type].name}`, 'success');
+                            
+                            // Reset Worker
+                            finalPawns[workerIdx].currentJob = null;
+                            finalPawns[workerIdx].status = 'Idle';
+                        } else {
+                             addLog(`[${worker.name}] failed construction: Missing Resources`, 'error');
+                             finalPawns[workerIdx].currentJob = null;
+                             finalPawns[workerIdx].status = 'Idle';
+                        }
+
                     } else {
                          nextStruct.currentActivity.progress = newProgress;
                     }
@@ -273,6 +348,7 @@ const App: React.FC = () => {
                             }
 
                             // Produce Outputs
+                            let logMsg = `[${worker.name}] finished ${actDef.name}`;
                             // Special Handling for Farming
                             if (nextStruct.type === 'FARM_PLOT') {
                                 if (actId.startsWith('plant_')) {
@@ -283,6 +359,7 @@ const App: React.FC = () => {
                                         growth: 0,
                                         planted: true
                                     };
+                                    logMsg = `[${worker.name}] planted ${cropType}`;
                                 } else if (actId === HARVEST_ACTIVITY_ID) {
                                     // Harvesting finished
                                     if (nextStruct.crop && nextStruct.crop.planted) {
@@ -298,6 +375,7 @@ const App: React.FC = () => {
                                                 quantity: yieldAmount,
                                                 weight: 1
                                              });
+                                             logMsg = `[${worker.name}] harvested ${yieldAmount}x ${cropDef.name}`;
                                         }
                                         // Clear crop
                                         nextStruct.crop = undefined;
@@ -327,16 +405,21 @@ const App: React.FC = () => {
                                                     weight: 1 
                                                 });
                                             }
+                                            logMsg += ` -> ${quantityToAdd}x ${out.itemName}`;
                                         }
                                     });
                                 } else if (actDef.actionType === 'STORE') {
                                     if (worker.inventory.length > 0) {
+                                        const itemCount = worker.inventory.reduce((acc, i) => acc + i.quantity, 0);
                                         nextStruct.inventory.push(...worker.inventory);
                                         worker.inventory = [];
+                                        logMsg = `[${worker.name}] stored ${itemCount} items`;
                                     }
                                 }
                             }
                             
+                            addLog(logMsg, 'success');
+
                             // Check Repeats
                             const repeatsLeft = (nextStruct.currentActivity.repeatsLeft || 1) - 1;
                             // Farm planting/harvesting doesn't repeat immediately on same tile usually
@@ -359,6 +442,7 @@ const App: React.FC = () => {
                                         repeatsLeft
                                     };
                                 } else {
+                                    addLog(`[${worker.name}] stopped: Missing ingredients`, 'warning');
                                     nextStruct.currentActivity = undefined;
                                     finalPawns[workerIdx].currentJob = null;
                                     finalPawns[workerIdx].status = 'Idle';
@@ -410,15 +494,8 @@ const App: React.FC = () => {
             inventory: [],
             isBlueprint: true 
         };
-        // If farm plot, it's instant build (no cost/time for designating area in MVP) or make it very cheap. 
-        // Prompt implies "designate", usually free. But "construct on grid" usually implies work.
-        // Let's make Farm Plot a blueprint that needs work (0 cost but 10 ticks work).
-        // Wait, STRUCTURES[FARM_PLOT] has empty cost. 
-        // If cost is empty, maybe we skip blueprint phase? RimWorld zones are instant.
-        // But prompt said "build structures". Let's keep it consistent: Place Blueprint -> Construct.
-        // For Farm Plot, Construct act is just "preparing soil".
-        
         setStructures(prev => [...prev, newStruct]);
+        addLog(`Placed ${buildMode.name} blueprint`);
       }
   };
 
@@ -452,6 +529,7 @@ const App: React.FC = () => {
     if (selectedPawnId && !clickedStructure && !clickedPawn) {
         setPawns(prev => prev.map(p => {
             if (p.id === selectedPawnId) {
+                addLog(`[${p.name}] Moving to (${x},${y})`);
                 return {
                     ...p,
                     currentJob: {
@@ -460,6 +538,7 @@ const App: React.FC = () => {
                         targetX: x,
                         targetY: y
                     },
+                    jobQueue: [], // Clear queue on manual move
                     status: 'Moving'
                 };
             }
@@ -511,85 +590,171 @@ const App: React.FC = () => {
       return sources;
   };
 
-  const handleOrderJob = (pawnId: string, structureId: string, activityId: string, count: number = 1) => {
-      const pawn = pawns.find(p => p.id === pawnId);
-      const struct = structures.find(s => s.id === structureId);
-      if (!pawn || !struct) return;
+  // Helper to find connected similar tasks (Flood Fill)
+  const findBatchTargets = (startStruct: Structure, activityId: string): Structure[] => {
+      const batch: Structure[] = [];
+      const queue: Structure[] = [startStruct];
+      const visited = new Set<string>();
+      visited.add(startStruct.id);
 
-      const def = STRUCTURES[struct.type];
-      
-      let requiredItems: {itemName: string, quantity: number}[] = [];
-      
-      if (activityId === CONSTRUCT_ACTIVITY_ID) {
-          requiredItems = def.cost.map(c => ({ itemName: c.itemName, quantity: c.amount }));
-      } else {
-          const act = def.activities.find(a => a.id === activityId);
-          if (act && act.inputs) {
-             requiredItems = act.inputs.map(i => ({ itemName: i.itemName, quantity: i.quantity * count }));
+      while(queue.length > 0) {
+          const current = queue.shift()!;
+          batch.push(current);
+          
+          // Max batch size to prevent lag/overflow
+          if (batch.length > 20) break; 
+
+          // Check 4 neighbors
+          const dirs = [[0,1], [0,-1], [1,0], [-1,0]];
+          for (const [dx, dy] of dirs) {
+              const nx = current.x + dx;
+              const ny = current.y + dy;
+              
+              const neighbor = structures.find(s => s.x === nx && s.y === ny);
+              if (neighbor && !visited.has(neighbor.id)) {
+                  let isValid = false;
+                  
+                  // Criteria based on activity
+                  if (activityId === CONSTRUCT_ACTIVITY_ID) {
+                      // Construct: Must be blueprint of same type
+                      if (neighbor.isBlueprint && neighbor.type === startStruct.type) isValid = true;
+                  } else if (activityId === HARVEST_ACTIVITY_ID) {
+                      // Harvest: Must be Farm Plot with Mature Crop
+                      if (neighbor.type === 'FARM_PLOT' && neighbor.crop && neighbor.crop.growth >= 100) isValid = true;
+                  } else if (activityId.startsWith('plant_')) {
+                      // Plant: Must be Farm Plot with NO crop
+                      if (neighbor.type === 'FARM_PLOT' && (!neighbor.crop || !neighbor.crop.planted)) isValid = true;
+                  }
+
+                  if (isValid) {
+                      visited.add(neighbor.id);
+                      queue.push(neighbor);
+                  }
+              }
           }
       }
-
-      let jobChain: Job | undefined = undefined;
-      const primaryJob: Job = {
-          id: `job-work-${Date.now()}`,
-          type: 'WORK',
-          targetStructureId: structureId,
-          activityId: activityId,
-          activityRepeats: count
-      };
       
-      if (requiredItems.length > 0) {
-          const sources = findSourceForItems(requiredItems, pawn.inventory);
+      // Sort by distance to startStruct for simpler pathing
+      return batch.sort((a,b) => {
+          const distA = Math.abs(a.x - startStruct.x) + Math.abs(a.y - startStruct.y);
+          const distB = Math.abs(b.x - startStruct.x) + Math.abs(b.y - startStruct.y);
+          return distA - distB;
+      });
+  };
+
+  const handleOrderJob = (pawnId: string, structureId: string, activityId: string, count: number = 1) => {
+      const pawn = pawns.find(p => p.id === pawnId);
+      const startStruct = structures.find(s => s.id === structureId);
+      if (!pawn || !startStruct) return;
+
+      // Detect if this is a batch-compatible activity
+      const isBatchable = 
+        activityId === CONSTRUCT_ACTIVITY_ID || 
+        activityId === HARVEST_ACTIVITY_ID || 
+        activityId.startsWith('plant_');
+
+      let targets: Structure[] = [startStruct];
+      
+      if (isBatchable) {
+          targets = findBatchTargets(startStruct, activityId);
+      }
+      
+      if (targets.length > 1) {
+          addLog(`Queueing batch order: ${activityId} on ${targets.length} targets`);
+      } else {
+          addLog(`Ordered [${pawn.name}]: ${activityId}`);
+      }
+
+      // Generate Job Chain for EACH target
+      const generatedJobs: Job[] = [];
+
+      targets.forEach(target => {
+          const def = STRUCTURES[target.type];
           
-          if (sources === null) {
-              alert("Not enough resources found in storage or inventory!");
-              return;
+          let requiredItems: {itemName: string, quantity: number}[] = [];
+          if (activityId === CONSTRUCT_ACTIVITY_ID) {
+              requiredItems = def.cost.map(c => ({ itemName: c.itemName, quantity: c.amount }));
+          } else {
+              const act = def.activities.find(a => a.id === activityId);
+              if (act && act.inputs) {
+                 requiredItems = act.inputs.map(i => ({ itemName: i.itemName, quantity: i.quantity * count }));
+              }
           }
 
-          if (sources.length > 0) {
-              let firstJob: Job | null = null;
-              let currentLink: Job | null = null;
+          let jobChain: Job | undefined = undefined;
+          const primaryJob: Job = {
+              id: `job-work-${Date.now()}-${target.id}`,
+              type: 'WORK',
+              targetStructureId: target.id,
+              activityId: activityId,
+              activityRepeats: count
+          };
 
-              sources.forEach(source => {
-                  const fetchJob: Job = {
-                      id: `job-fetch-${Date.now()}-${source.itemName}`,
-                      type: 'WITHDRAW',
-                      targetStructureId: source.sourceId,
-                      itemsToHandle: [{ itemName: source.itemName, quantity: source.quantity }]
-                  };
-                  
-                  if (!firstJob) {
-                      firstJob = fetchJob;
-                      currentLink = fetchJob;
-                  } else if (currentLink) {
-                      currentLink.nextJob = fetchJob;
-                      currentLink = fetchJob;
-                  }
-              });
+          if (requiredItems.length > 0) {
+              const sources = findSourceForItems(requiredItems, pawn.inventory);
+              if (sources) { 
+                   let firstJob: Job | null = null;
+                   let currentLink: Job | null = null;
 
-              if (currentLink) {
-                  currentLink.nextJob = primaryJob;
-                  jobChain = firstJob as Job;
+                   sources.forEach(source => {
+                       const fetchJob: Job = {
+                           id: `job-fetch-${Date.now()}-${source.itemName}-${Math.random()}`,
+                           type: 'WITHDRAW',
+                           targetStructureId: source.sourceId,
+                           itemsToHandle: [{ itemName: source.itemName, quantity: source.quantity }]
+                       };
+                       
+                       if (!firstJob) {
+                           firstJob = fetchJob;
+                           currentLink = fetchJob;
+                       } else if (currentLink) {
+                           currentLink.nextJob = fetchJob;
+                           currentLink = fetchJob;
+                       }
+                   });
+
+                   if (currentLink) {
+                       currentLink.nextJob = primaryJob;
+                       jobChain = firstJob as Job;
+                   } else {
+                       jobChain = primaryJob;
+                   }
+              } else {
+                  addLog(`Cannot find resources for ${STRUCTURES[target.type].name} at (${target.x},${target.y})`, 'warning');
+                  return;
               }
           } else {
               jobChain = primaryJob;
           }
-      } else {
-          jobChain = primaryJob;
+          
+          if (jobChain) generatedJobs.push(jobChain);
+      });
+
+      if (generatedJobs.length === 0) {
+           addLog("Order Cancelled: Not enough resources found!", 'error');
+           return;
       }
+
+      // Assign first job to current, rest to queue
+      const firstJob = generatedJobs[0];
+      const remainingJobs = generatedJobs.slice(1);
 
       setPawns(prev => prev.map(p => {
           if (p.id === pawnId) {
               return {
                   ...p,
-                  currentJob: jobChain || null
+                  currentJob: firstJob,
+                  jobQueue: remainingJobs,
+                  status: 'Starting Job Batch'
               };
           }
           return p;
       }));
 
+      // Update structure states for immediate feedback (only for the first one usually, others update when job starts)
+      // Actually, we can update the 'workerId' intent immediately for the first one to show feedback
       setStructures(prev => prev.map(s => {
-          if (s.id === structureId) {
+          if (s.id === startStruct.id) {
               return {
                   ...s,
                   currentActivity: {
@@ -619,11 +784,14 @@ const App: React.FC = () => {
             inventory: [],
             maxWeight: 35,
             currentJob: null,
+            jobQueue: [],
             status: 'Idle'
         };
         setPawns(prev => [...prev, newPawn]);
+        addLog(`Recruited ${newPawn.name}: ${newPawn.backstory}`, 'success');
       } catch (e) {
           console.error("Failed to generate pawn", e);
+          addLog("Failed to generate pawn", 'error');
       } finally {
           setIsGeneratingPawn(false);
       }
@@ -658,6 +826,7 @@ const App: React.FC = () => {
             isGeneratingPawn={isGeneratingPawn}
             onGeneratePawn={handleGeneratePawn}
         />
+        <LogPanel logs={logs} />
     </div>
   );
 };
