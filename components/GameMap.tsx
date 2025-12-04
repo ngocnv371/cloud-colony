@@ -13,6 +13,8 @@ interface GameMapProps {
   selectedPawnId: string | null;
   selectedStructureId: string | null;
   buildPreview: StructureDefinition | null;
+  commandMode: 'HARVEST' | 'CHOP' | 'MINE' | null;
+  dragStart: { x: number, y: number } | null;
   hoverPos: { x: number, y: number } | null;
   setHoverPos: (pos: { x: number, y: number } | null) => void;
 }
@@ -28,6 +30,8 @@ const GameMap: React.FC<GameMapProps> = ({
   selectedPawnId,
   selectedStructureId,
   buildPreview,
+  commandMode,
+  dragStart,
   hoverPos,
   setHoverPos
 }) => {
@@ -36,6 +40,8 @@ const GameMap: React.FC<GameMapProps> = ({
     width: MAP_SIZE * TILE_SIZE,
     height: MAP_SIZE * TILE_SIZE,
   };
+
+  const cursorClass = commandMode ? 'cursor-crosshair' : (buildPreview ? 'cursor-cell' : 'cursor-auto');
 
   const getPawnIcon = (jobType?: string) => {
     switch(jobType) {
@@ -76,7 +82,7 @@ const GameMap: React.FC<GameMapProps> = ({
   };
 
   return (
-    <div className="overflow-auto flex-1 bg-stone-900 flex justify-center items-center p-8 cursor-crosshair">
+    <div className={`overflow-auto flex-1 bg-stone-900 flex justify-center items-center p-8 ${cursorClass}`}>
       <div 
         className="relative bg-[#3a4a35] shadow-2xl border-4 border-stone-700"
         style={mapStyle}
@@ -121,7 +127,7 @@ const GameMap: React.FC<GameMapProps> = ({
             return (
                 <div
                     key={struct.id}
-                    className={`absolute flex items-center justify-center transition-all
+                    className={`absolute flex items-center justify-center transition-all pointer-events-none
                         ${def.color} ${isSelected ? 'border-4 border-white z-10' : 'border border-stone-800'}
                         ${struct.isBlueprint ? 'opacity-60 border-2 border-dashed border-blue-300' : ''}
                     `}
@@ -131,11 +137,6 @@ const GameMap: React.FC<GameMapProps> = ({
                         width: def.width * TILE_SIZE,
                         height: def.height * TILE_SIZE,
                     }}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onTileClick(struct.x, struct.y);
-                    }}
-                    onMouseEnter={() => onTileEnter(struct.x, struct.y)}
                 >
                     {/* Icons */}
                     {getStructureIcon(struct)}
@@ -173,7 +174,7 @@ const GameMap: React.FC<GameMapProps> = ({
             return (
                 <div
                     key={pawn.id}
-                    className={`absolute rounded-full flex items-center justify-center shadow-lg transition-all duration-300 ease-linear
+                    className={`absolute rounded-full flex items-center justify-center shadow-lg transition-all duration-300 ease-linear pointer-events-none
                         ${pawn.color} ${isSelected ? 'ring-4 ring-yellow-400 z-30 scale-110' : 'z-20'}
                     `}
                     style={{
@@ -182,10 +183,6 @@ const GameMap: React.FC<GameMapProps> = ({
                         width: TILE_SIZE * 0.8,
                         height: TILE_SIZE * 0.8,
                         transform: 'translate(10%, 10%)' // Center in tile
-                    }}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onTileClick(pawn.x, pawn.y);
                     }}
                 >
                     <div className="flex flex-col items-center">
@@ -207,6 +204,23 @@ const GameMap: React.FC<GameMapProps> = ({
                     top: hoverPos.y * TILE_SIZE,
                     width: buildPreview.width * TILE_SIZE,
                     height: buildPreview.height * TILE_SIZE,
+                }}
+            />
+        )}
+
+        {/* Command Selection Box */}
+        {dragStart && hoverPos && commandMode && (
+            <div
+                className={`absolute border-2 z-50 pointer-events-none opacity-50
+                    ${commandMode === 'HARVEST' ? 'bg-green-500/30 border-green-300' : ''}
+                    ${commandMode === 'CHOP' ? 'bg-orange-500/30 border-orange-300' : ''}
+                    ${commandMode === 'MINE' ? 'bg-stone-500/30 border-stone-300' : ''}
+                `}
+                style={{
+                    left: Math.min(dragStart.x, hoverPos.x) * TILE_SIZE,
+                    top: Math.min(dragStart.y, hoverPos.y) * TILE_SIZE,
+                    width: (Math.abs(hoverPos.x - dragStart.x) + 1) * TILE_SIZE,
+                    height: (Math.abs(hoverPos.y - dragStart.y) + 1) * TILE_SIZE,
                 }}
             />
         )}

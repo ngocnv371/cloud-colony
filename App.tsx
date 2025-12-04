@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import GameMap from './components/GameMap';
 import Sidebar from './components/Sidebar';
 import LogPanel from './components/LogPanel';
 import ResourceHUD from './components/ResourceHUD';
-import { Pawn, Structure, StructureDefinition, Job, MAP_SIZE, TICK_RATE_MS, LogEntry } from './types';
+import { Pawn, Structure, StructureDefinition, Job, MAP_SIZE, TICK_RATE_MS, LogEntry, SkillType } from './types';
 import { STRUCTURES, INITIAL_PAWNS, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID } from './constants';
 import { generateRandomPawn } from './services/geminiService';
 
@@ -37,9 +38,11 @@ const App: React.FC = () => {
   const [selectedPawnId, setSelectedPawnId] = useState<string | null>(null);
   const [selectedStructureId, setSelectedStructureId] = useState<string | null>(null);
   const [buildMode, setBuildMode] = useState<StructureDefinition | null>(null);
+  const [commandMode, setCommandMode] = useState<'HARVEST' | 'CHOP' | 'MINE' | null>(null);
   const [hoverPos, setHoverPos] = useState<{x: number, y: number} | null>(null);
   const [isGeneratingPawn, setIsGeneratingPawn] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState<{x: number, y: number} | null>(null);
 
   // Refs for Game Loop to access latest state without re-triggering effect
   const stateRef = useRef({ pawns, structures, logs, globalJobQueue });
@@ -97,6 +100,26 @@ const App: React.FC = () => {
     addLogs([...pawnLogs, ...structureLogs]);
   };
 
+  // --- Helpers ---
+  const getCommandActivity = (structure: Structure, mode: 'HARVEST' | 'CHOP' | 'MINE'): string | null => {
+      const def = STRUCTURES[structure.type];
+      if (!def) return null;
+      
+      if (mode === 'CHOP' && def.type === 'TREE') return 'chop_wood';
+      
+      if (mode === 'HARVEST') {
+          if (def.type === 'BERRY_BUSH') return 'harvest_berry';
+          if (def.type === 'FARM_PLOT' && structure.crop && structure.crop.growth >= 100) return HARVEST_ACTIVITY_ID;
+      }
+      
+      if (mode === 'MINE') {
+          const mineAct = def.activities.find(a => a.requiredSkill === SkillType.MINING && a.actionType === 'GATHER');
+          if (mineAct) return mineAct.id;
+      }
+
+      return null;
+  };
+
   // --- Handlers ---
 
   const buildAt = (x: number, y: number) => {
@@ -137,10 +160,55 @@ const App: React.FC = () => {
       });
   };
 
+  const batchCommand = (x1: number, y1: number, x2: number, y2: number) => {
+      if (!commandMode) return;
+      
+      let jobsCreated = 0;
+      const newJobs: Job[] = [];
+
+      structures.forEach(s => {
+          // Check if structure is within bounds
+          const isInBounds = s.x >= x1 && s.x <= x2 && s.y >= y1 && s.y <= y2;
+          if (!isInBounds) return;
+
+          // Check if compatible with command
+          const activityId = getCommandActivity(s, commandMode);
+          if (activityId) {
+             // Avoid duplicates in queue (simple check)
+             const alreadyQueued = globalJobQueue.some(j => j.targetStructureId === s.id && j.activityId === activityId);
+             const alreadyActive = s.currentActivity?.activityId === activityId;
+             
+             if (!alreadyQueued && !alreadyActive) {
+                 newJobs.push({
+                     id: `job-cmd-${Date.now()}-${s.id}`,
+                     type: 'WORK',
+                     targetStructureId: s.id,
+                     activityId: activityId,
+                     activityRepeats: 1
+                 });
+                 jobsCreated++;
+             }
+          }
+      });
+
+      if (jobsCreated > 0) {
+          setGlobalJobQueue(prev => [...prev, ...newJobs]);
+          addLog(`Queued ${jobsCreated} ${commandMode.toLowerCase()} orders`, 'success');
+      } else {
+          addLog(`No valid targets found for ${commandMode.toLowerCase()}`, 'warning');
+      }
+  };
+
   const handleTileClick = (x: number, y: number) => {
     // 1. Build Mode
     if (buildMode) {
         buildAt(x, y);
+        return;
+    }
+    
+    // Command mode handled by drag/mouseup usually, but single click works too if dragging didn't happen
+    if (commandMode) {
+        // No-op here, handled by MouseUp/Down logic for drag consistency
         return;
     }
 
@@ -190,11 +258,27 @@ const App: React.FC = () => {
   };
 
   const handleMouseDown = () => {
-      if (buildMode) setIsDragging(true);
+      if (buildMode) {
+          setIsDragging(true);
+      } else if (commandMode && hoverPos) {
+          setIsDragging(true);
+          setDragStart(hoverPos);
+      }
   };
   
   const handleMouseUp = () => {
+      if (commandMode && dragStart && hoverPos) {
+          // Determine bounds
+          const x1 = Math.min(dragStart.x, hoverPos.x);
+          const x2 = Math.max(dragStart.x, hoverPos.x);
+          const y1 = Math.min(dragStart.y, hoverPos.y);
+          const y2 = Math.max(dragStart.y, hoverPos.y);
+          
+          batchCommand(x1, y1, x2, y2);
+      }
+      
       setIsDragging(false);
+      setDragStart(null);
   };
 
   const handleTileEnter = (x: number, y: number) => {
@@ -315,6 +399,8 @@ const App: React.FC = () => {
             selectedPawnId={selectedPawnId}
             selectedStructureId={selectedStructureId}
             buildPreview={buildMode}
+            commandMode={commandMode}
+            dragStart={dragStart}
             hoverPos={hoverPos}
             setHoverPos={setHoverPos}
         />
@@ -327,6 +413,8 @@ const App: React.FC = () => {
             onOrderJob={handleOrderJob}
             buildMode={buildMode}
             setBuildMode={setBuildMode}
+            commandMode={commandMode}
+            setCommandMode={setCommandMode}
             pawns={pawns}
             isGeneratingPawn={isGeneratingPawn}
             onGeneratePawn={handleGeneratePawn}

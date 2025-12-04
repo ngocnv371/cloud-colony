@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Pawn, Structure, StructureDefinition, SkillType, ActivityDefinition } from '../types';
 import { STRUCTURES, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID } from '../constants';
-import { X, CheckCircle, Activity, Briefcase, Construction, Package, Sprout } from 'lucide-react';
+import { X, CheckCircle, Activity, Briefcase, Construction, Package, Sprout, Axe, Pickaxe, Scissors } from 'lucide-react';
 
 interface SidebarProps {
   selectedPawn: Pawn | undefined;
@@ -10,6 +10,8 @@ interface SidebarProps {
   onOrderJob: (pawnId: string | null, structureId: string, activityId: string, count: number) => void;
   buildMode: StructureDefinition | null;
   setBuildMode: (def: StructureDefinition | null) => void;
+  commandMode: 'HARVEST' | 'CHOP' | 'MINE' | null;
+  setCommandMode: (mode: 'HARVEST' | 'CHOP' | 'MINE' | null) => void;
   pawns: Pawn[];
   isGeneratingPawn: boolean;
   onGeneratePawn: () => void;
@@ -21,6 +23,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   onOrderJob,
   buildMode,
   setBuildMode,
+  commandMode,
+  setCommandMode,
   pawns,
   isGeneratingPawn,
   onGeneratePawn
@@ -28,6 +32,16 @@ const Sidebar: React.FC<SidebarProps> = ({
   
   const structureDef = selectedStructure ? STRUCTURES[selectedStructure.type] : null;
   const [repeatCount, setRepeatCount] = useState<number>(1);
+
+  const handleSetBuildMode = (def: StructureDefinition | null) => {
+      setBuildMode(def);
+      if (def) setCommandMode(null);
+  };
+
+  const handleSetCommandMode = (mode: 'HARVEST' | 'CHOP' | 'MINE' | null) => {
+      setCommandMode(mode);
+      if (mode) setBuildMode(null);
+  };
 
   return (
     <div className="w-96 bg-gray-800 border-l border-gray-700 flex flex-col h-full overflow-hidden shadow-xl z-30">
@@ -42,6 +56,52 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
         
+        {/* Orders Menu */}
+        <section>
+          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Orders</h2>
+          <div className="grid grid-cols-3 gap-2">
+              <button
+                onClick={() => handleSetCommandMode(commandMode === 'HARVEST' ? null : 'HARVEST')}
+                className={`p-2 rounded border text-xs font-medium flex flex-col items-center gap-2 transition-all
+                  ${commandMode === 'HARVEST' 
+                    ? 'bg-green-600 border-green-400 text-white shadow-lg scale-105' 
+                    : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'
+                  }
+                `}
+              >
+                <Scissors size={20} />
+                Harvest
+              </button>
+              <button
+                onClick={() => handleSetCommandMode(commandMode === 'CHOP' ? null : 'CHOP')}
+                className={`p-2 rounded border text-xs font-medium flex flex-col items-center gap-2 transition-all
+                  ${commandMode === 'CHOP' 
+                    ? 'bg-orange-600 border-orange-400 text-white shadow-lg scale-105' 
+                    : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'
+                  }
+                `}
+              >
+                <Axe size={20} />
+                Chop Wood
+              </button>
+              <button
+                onClick={() => handleSetCommandMode(commandMode === 'MINE' ? null : 'MINE')}
+                className={`p-2 rounded border text-xs font-medium flex flex-col items-center gap-2 transition-all
+                  ${commandMode === 'MINE' 
+                    ? 'bg-stone-600 border-stone-400 text-white shadow-lg scale-105' 
+                    : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'
+                  }
+                `}
+              >
+                <Pickaxe size={20} />
+                Mine
+              </button>
+          </div>
+          <p className="text-[10px] text-gray-500 mt-2 text-center italic">
+              Select an order and drag across the map to tag objects.
+          </p>
+        </section>
+
         {/* Build Menu */}
         <section>
           <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Architect</h2>
@@ -49,7 +109,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             {Object.values(STRUCTURES).filter(def => !def.isNatural).map(def => (
               <button
                 key={def.type}
-                onClick={() => setBuildMode(buildMode?.type === def.type ? null : def)}
+                onClick={() => handleSetBuildMode(buildMode?.type === def.type ? null : def)}
                 className={`relative p-2 rounded border text-xs font-medium flex flex-col items-center gap-2 transition-all group
                   ${buildMode?.type === def.type 
                     ? 'bg-blue-600 border-blue-400 text-white shadow-lg scale-105' 
