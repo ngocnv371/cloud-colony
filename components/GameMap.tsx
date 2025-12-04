@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { Structure, Pawn, MAP_SIZE, StructureDefinition } from '../types';
 import { STRUCTURES } from '../constants';
-import { User, Hammer, Utensils, Zap, Box, Brain, TreeDeciduous, Grape, Sprout, Wheat, Carrot } from 'lucide-react';
+import { User, Hammer, Utensils, Zap, Box, Brain, TreeDeciduous, Grape, Sprout, Wheat, Carrot, Mountain } from 'lucide-react';
 
 interface GameMapProps {
   structures: Structure[];
@@ -55,6 +55,23 @@ const GameMap: React.FC<GameMapProps> = ({
           case 'CORN': return <Wheat size={isMature ? 24 : 18} className={className} />;
           case 'POTATO': return <Carrot size={isMature ? 24 : 18} className={className} />; // Carrot icon as generic root veg
           default: return <Grape size={isMature ? 24 : 18} className={className} />; // Rice/Generic
+      }
+  };
+
+  const getStructureIcon = (struct: Structure) => {
+      switch(struct.type) {
+          case 'CAMPFIRE': return <Utensils size={24} className="text-white opacity-80" />;
+          case 'RESEARCH_BENCH': return <Brain size={24} className="text-white opacity-80" />;
+          case 'WORKBENCH': return <Hammer size={24} className="text-white opacity-80" />;
+          case 'CHEST': return <Box size={24} className="text-white opacity-80" />;
+          case 'TREE': return <TreeDeciduous size={32} className="text-green-300 opacity-90" />;
+          case 'BERRY_BUSH': return <Grape size={24} className="text-red-300 opacity-90" />;
+          case 'BOULDER': return <Mountain size={28} className="text-stone-300 opacity-90" />;
+          case 'STEEL_VEIN': return <Mountain size={28} className="text-blue-300 opacity-90" />;
+          case 'SILVER_VEIN': return <Mountain size={28} className="text-gray-200 opacity-90 drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]" />;
+          case 'GOLD_VEIN': return <Mountain size={28} className="text-yellow-400 opacity-90 drop-shadow-[0_0_5px_rgba(250,204,21,0.5)]" />;
+          case 'URANIUM_VEIN': return <Mountain size={28} className="text-emerald-400 opacity-90 drop-shadow-[0_0_5px_rgba(52,211,153,0.5)]" />;
+          default: return null;
       }
   };
 
@@ -120,13 +137,8 @@ const GameMap: React.FC<GameMapProps> = ({
                     }}
                     onMouseEnter={() => onTileEnter(struct.x, struct.y)}
                 >
-                    {/* Visual indicators for structure type */}
-                    {struct.type === 'CAMPFIRE' && <Utensils size={24} className="text-white opacity-80" />}
-                    {struct.type === 'RESEARCH_BENCH' && <Brain size={24} className="text-white opacity-80" />}
-                    {struct.type === 'WORKBENCH' && <Hammer size={24} className="text-white opacity-80" />}
-                    {struct.type === 'CHEST' && <Box size={24} className="text-white opacity-80" />}
-                    {struct.type === 'TREE' && <TreeDeciduous size={32} className="text-green-300 opacity-90" />}
-                    {struct.type === 'BERRY_BUSH' && <Grape size={24} className="text-red-300 opacity-90" />}
+                    {/* Icons */}
+                    {getStructureIcon(struct)}
                     
                     {/* Farm Crops */}
                     {struct.type === 'FARM_PLOT' && struct.crop && struct.crop.planted && (

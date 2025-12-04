@@ -27,26 +27,35 @@ const App: React.FC = () => {
       // Generate some initial resources
       const initialStructures: Structure[] = [];
       
-      // Random Trees
-      for(let i=0; i<15; i++) {
-          initialStructures.push({
-              id: `tree-${i}`,
-              type: 'TREE',
-              x: Math.floor(Math.random() * MAP_SIZE),
-              y: Math.floor(Math.random() * MAP_SIZE),
-              inventory: []
-          });
-      }
-      // Random Bushes
-      for(let i=0; i<10; i++) {
-          initialStructures.push({
-              id: `bush-${i}`,
-              type: 'BERRY_BUSH',
-              x: Math.floor(Math.random() * MAP_SIZE),
-              y: Math.floor(Math.random() * MAP_SIZE),
-              inventory: []
-          });
-      }
+      const spawnRandom = (type: string, count: number) => {
+          for(let i=0; i<count; i++) {
+            let x, y;
+            // Simple overlap check limit
+            for(let attempt=0; attempt<10; attempt++) {
+                x = Math.floor(Math.random() * MAP_SIZE);
+                y = Math.floor(Math.random() * MAP_SIZE);
+                if (!initialStructures.some(s => s.x === x && s.y === y)) break;
+            }
+            if (x !== undefined && y !== undefined) {
+                initialStructures.push({
+                    id: `${type.toLowerCase()}-${i}`,
+                    type: type,
+                    x,
+                    y,
+                    inventory: []
+                });
+            }
+          }
+      };
+
+      spawnRandom('TREE', 15);
+      spawnRandom('BERRY_BUSH', 10);
+      spawnRandom('BOULDER', 8);
+      spawnRandom('STEEL_VEIN', 5);
+      spawnRandom('SILVER_VEIN', 2);
+      spawnRandom('GOLD_VEIN', 1);
+      spawnRandom('URANIUM_VEIN', 1);
+
       return initialStructures;
   });
   
@@ -340,7 +349,7 @@ const App: React.FC = () => {
             }
         });
 
-        // 2. CRITICAL FIX: Auto-initialize activity if a pawn is here to work
+        // 2. Auto-initialize activity if a pawn is here to work
         if (!nextStruct.currentActivity) {
              const arrivingWorker = finalPawns.find(p => 
                 p.currentJob?.type === 'WORK' && 
@@ -576,24 +585,39 @@ const App: React.FC = () => {
   const buildAt = (x: number, y: number) => {
       if (!buildMode) return;
       
-      // Check collision
-      const collision = structures.find(s => 
-        x >= s.x && x < s.x + STRUCTURES[s.type].width &&
-        y >= s.y && y < s.y + STRUCTURES[s.type].height
-      );
-    
-      if (!collision) {
-        const newStruct: Structure = {
-            id: `struct-${Date.now()}-${Math.random()}`,
-            type: buildMode.type,
-            x,
-            y,
-            inventory: [],
-            isBlueprint: true 
-        };
-        setStructures(prev => [...prev, newStruct]);
-        addLog(`Placed ${buildMode.name} blueprint`);
-      }
+      setStructures(prev => {
+          // Collision check using latest state
+          const collision = prev.find(s => 
+            x >= s.x && x < s.x + STRUCTURES[s.type].width &&
+            y >= s.y && y < s.y + STRUCTURES[s.type].height
+          );
+
+          if (!collision) {
+             const newStruct: Structure = {
+                id: `struct-${Date.now()}-${Math.random()}`,
+                type: buildMode.type,
+                x,
+                y,
+                inventory: [],
+                isBlueprint: true 
+             };
+             
+             // Auto-Queue Job
+             const newJob: Job = {
+                 id: `job-construct-${newStruct.id}`,
+                 type: 'WORK',
+                 targetStructureId: newStruct.id,
+                 activityId: CONSTRUCT_ACTIVITY_ID,
+                 activityRepeats: 1
+             };
+             
+             setGlobalJobQueue(queue => [...queue, newJob]);
+             addLog(`Placed & queued ${buildMode.name}`);
+             
+             return [...prev, newStruct];
+          }
+          return prev;
+      });
   };
 
   const handleTileClick = (x: number, y: number) => {

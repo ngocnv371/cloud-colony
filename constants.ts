@@ -11,13 +11,31 @@ export const CROPS = {
 };
 
 export const STRUCTURES: Record<string, StructureDefinition> = {
-  WALL: {
-    type: 'WALL',
-    name: 'Wall',
+  WOOD_WALL: {
+    type: 'WOOD_WALL',
+    name: 'Wood Wall',
+    width: 1,
+    height: 1,
+    color: 'bg-amber-900',
+    cost: [{ itemName: 'Wood', amount: 5 }],
+    activities: []
+  },
+  STONE_WALL: {
+    type: 'STONE_WALL',
+    name: 'Stone Wall',
     width: 1,
     height: 1,
     color: 'bg-stone-500',
-    cost: [{ itemName: 'Wood', amount: 5 }],
+    cost: [{ itemName: 'Stone', amount: 5 }],
+    activities: []
+  },
+  STEEL_WALL: {
+    type: 'STEEL_WALL',
+    name: 'Steel Wall',
+    width: 1,
+    height: 1,
+    color: 'bg-slate-500',
+    cost: [{ itemName: 'Steel', amount: 5 }],
     activities: []
   },
   CAMPFIRE: {
@@ -25,7 +43,7 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     name: 'Campfire',
     width: 1,
     height: 1,
-    color: 'bg-orange-500',
+    color: 'bg-orange-600',
     cost: [{ itemName: 'Wood', amount: 10 }],
     activities: [
       {
@@ -55,7 +73,7 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     name: 'Butcher Table',
     width: 2,
     height: 1,
-    color: 'bg-red-800',
+    color: 'bg-red-900',
     cost: [{ itemName: 'Wood', amount: 20 }],
     activities: [
       {
@@ -75,8 +93,8 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     name: 'Research Bench',
     width: 2,
     height: 2,
-    color: 'bg-blue-700',
-    cost: [{ itemName: 'Wood', amount: 30 }, { itemName: 'Iron', amount: 10 }],
+    color: 'bg-blue-800',
+    cost: [{ itemName: 'Wood', amount: 30 }, { itemName: 'Steel', amount: 10 }],
     activities: [
       {
         id: 'research_basic',
@@ -94,7 +112,7 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     name: 'Workbench',
     width: 2,
     height: 1,
-    color: 'bg-amber-600',
+    color: 'bg-amber-700',
     cost: [{ itemName: 'Wood', amount: 25 }],
     activities: [
       {
@@ -114,7 +132,7 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     name: 'Storage Chest',
     width: 1,
     height: 1,
-    color: 'bg-amber-800',
+    color: 'bg-amber-950',
     cost: [{ itemName: 'Wood', amount: 15 }],
     activities: [
         {
@@ -179,7 +197,7 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
       name: 'Tree',
       width: 1,
       height: 1,
-      color: 'bg-green-700',
+      color: 'bg-green-800',
       isNatural: true,
       cost: [],
       activities: [
@@ -199,7 +217,7 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
       name: 'Berry Bush',
       width: 1,
       height: 1,
-      color: 'bg-green-500',
+      color: 'bg-green-600',
       isNatural: true,
       cost: [],
       activities: [
@@ -213,6 +231,107 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
               outputs: [{ itemName: 'Berries', quantity: 8 }]
           }
       ]
+  },
+  // --- Mining Resources ---
+  BOULDER: {
+    type: 'BOULDER',
+    name: 'Boulder',
+    width: 1,
+    height: 1,
+    color: 'bg-stone-600',
+    isNatural: true,
+    cost: [],
+    activities: [
+        {
+            id: 'mine_stone',
+            name: 'Mine Stone',
+            actionType: 'GATHER',
+            requiredSkill: SkillType.MINING,
+            requiredLevel: 0,
+            durationTicks: 25,
+            outputs: [{ itemName: 'Stone', quantity: 20 }]
+        }
+    ]
+  },
+  STEEL_VEIN: {
+    type: 'STEEL_VEIN',
+    name: 'Steel Vein',
+    width: 1,
+    height: 1,
+    color: 'bg-slate-700',
+    isNatural: true,
+    cost: [],
+    activities: [
+        {
+            id: 'mine_steel',
+            name: 'Mine Steel',
+            actionType: 'GATHER',
+            requiredSkill: SkillType.MINING,
+            requiredLevel: 2,
+            durationTicks: 30,
+            outputs: [{ itemName: 'Steel', quantity: 15 }]
+        }
+    ]
+  },
+  SILVER_VEIN: {
+    type: 'SILVER_VEIN',
+    name: 'Silver Vein',
+    width: 1,
+    height: 1,
+    color: 'bg-slate-500',
+    isNatural: true,
+    cost: [],
+    activities: [
+        {
+            id: 'mine_silver',
+            name: 'Mine Silver',
+            actionType: 'GATHER',
+            requiredSkill: SkillType.MINING,
+            requiredLevel: 4,
+            durationTicks: 35,
+            outputs: [{ itemName: 'Silver', quantity: 10 }]
+        }
+    ]
+  },
+  GOLD_VEIN: {
+    type: 'GOLD_VEIN',
+    name: 'Gold Vein',
+    width: 1,
+    height: 1,
+    color: 'bg-yellow-800',
+    isNatural: true,
+    cost: [],
+    activities: [
+        {
+            id: 'mine_gold',
+            name: 'Mine Gold',
+            actionType: 'GATHER',
+            requiredSkill: SkillType.MINING,
+            requiredLevel: 6,
+            durationTicks: 40,
+            outputs: [{ itemName: 'Gold', quantity: 5 }]
+        }
+    ]
+  },
+  URANIUM_VEIN: {
+    type: 'URANIUM_VEIN',
+    name: 'Uranium Vein',
+    width: 1,
+    height: 1,
+    color: 'bg-green-900',
+    isNatural: true,
+    cost: [],
+    activities: [
+        {
+            id: 'mine_uranium',
+            name: 'Mine Uranium',
+            actionType: 'GATHER',
+            requiredSkill: SkillType.MINING,
+            requiredLevel: 8,
+            durationTicks: 50,
+            outputs: [{ itemName: 'Uranium', quantity: 5 }]
+        }
+    ]
   }
 };
 
@@ -224,7 +343,7 @@ export const INITIAL_PAWNS = [
       [SkillType.CONSTRUCTION]: 5,
       [SkillType.COOKING]: 2,
       [SkillType.PLANTS]: 1,
-      [SkillType.MINING]: 0,
+      [SkillType.MINING]: 3,
       [SkillType.SOCIAL]: 3,
       [SkillType.INTELLECTUAL]: 0,
       [SkillType.MELEE]: 4
@@ -237,7 +356,7 @@ export const INITIAL_PAWNS = [
       [SkillType.CONSTRUCTION]: 2,
       [SkillType.COOKING]: 5,
       [SkillType.PLANTS]: 8,
-      [SkillType.MINING]: 0,
+      [SkillType.MINING]: 1,
       [SkillType.SOCIAL]: 5,
       [SkillType.INTELLECTUAL]: 2,
       [SkillType.MELEE]: 1
