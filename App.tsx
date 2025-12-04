@@ -120,27 +120,6 @@ const App: React.FC = () => {
              } else {
                  // At location, take items instantly
                  if (job.itemsToHandle) {
-                     // We need to modify the structure in nextStructures, but here we only modify pawn
-                     // Structure modification happens in the structure loop or we need a way to mutate structure state from here.
-                     // IMPORTANT: In this architecture, pawns drive the loop. We will mutate the structure implicitly by finding it in nextStructures later?
-                     // Actually, we need to return the modified structure too.
-                     // But React state is immutable.
-                     // For this MVP, we will handle structure inventory changes in the 'Structure Processing' phase if there is an activity,
-                     // OR handle it here but we need access to setStructures logic.
-                     // Simplified: We will mark the job as done and let the "Structure Phase" handle logic? 
-                     // No, "Structure Phase" handles timed activities. WITHDRAW is instant.
-                     
-                     // We will mutate the structure inside the structure map below based on this pawn's action. 
-                     // So here we just prepare the pawn.
-                     
-                     // Wait, we can't easily mutate structures from the pawn map.
-                     // Let's do a trick: The `WITHDRAW` action completes in the pawn loop, but the actual data change needs to happen globally.
-                     // Since we recalculate `nextStructures` after `nextPawns`, we can't easily cross-reference.
-                     
-                     // Solution: Store "pending inventory changes" in a temp variable? 
-                     // Or just handle it in the `nextStructures` map by looking at pawns that are executing WITHDRAW this tick.
-                     
-                     // Let's defer completion of WITHDRAW to the next phase.
                      nextPawn.status = 'Withdrawing';
                  }
              }
@@ -238,13 +217,6 @@ const App: React.FC = () => {
                     const newProgress = Math.min(100, nextStruct.currentActivity.progress + progressGain);
                     
                     if (newProgress >= 100) {
-                        // Consumed items were taken at start of job? 
-                        // Actually, logic is safer if we consume items from pawn inventory here gradually or at end?
-                        // "Pawn has inventory... required to have necessary resources".
-                        // Let's assume they brought the items and we consume them now to 'install' them.
-                        // For MVP: Consume all at once at completion or start. 
-                        // Let's consume at completion to be safe.
-                        
                         // Check costs again? We checked when starting job.
                         const cost = STRUCTURES[nextStruct.type].cost;
                         cost.forEach(c => {
@@ -294,16 +266,28 @@ const App: React.FC = () => {
                             if (actDef.actionType === 'GATHER' || actDef.actionType === 'CRAFT') {
                                 if (actDef.outputs) {
                                     actDef.outputs.forEach(out => {
-                                        const existingItem = worker.inventory.find(i => i.name === out.itemName);
-                                        if (existingItem) {
-                                            existingItem.quantity += out.quantity;
-                                        } else {
-                                            worker.inventory.push({
-                                                id: `item-${Date.now()}-${Math.random()}`,
-                                                name: out.itemName,
-                                                quantity: out.quantity,
-                                                weight: 1 
-                                            });
+                                        let quantityToAdd = out.quantity;
+
+                                        // Skill-based yield for gathering
+                                        // Level 0: 50% yield, Level 20: 200% yield
+                                        if (actDef.actionType === 'GATHER') {
+                                             const skillLevel = worker.skills[actDef.requiredSkill] || 0;
+                                             const multiplier = 0.5 + (skillLevel / 20.0) * 1.5;
+                                             quantityToAdd = Math.floor(out.quantity * multiplier);
+                                        }
+
+                                        if (quantityToAdd > 0) {
+                                            const existingItem = worker.inventory.find(i => i.name === out.itemName);
+                                            if (existingItem) {
+                                                existingItem.quantity += quantityToAdd;
+                                            } else {
+                                                worker.inventory.push({
+                                                    id: `item-${Date.now()}-${Math.random()}`,
+                                                    name: out.itemName,
+                                                    quantity: quantityToAdd,
+                                                    weight: 1 
+                                                });
+                                            }
                                         }
                                     });
                                 }
@@ -347,7 +331,7 @@ const App: React.FC = () => {
                                 finalPawns[workerIdx].currentJob = null;
                                 finalPawns[workerIdx].status = 'Idle';
 
-                                // If GATHER, destroy structure
+                                // If GATHER, destroy structure (it's harvested)
                                 if (actDef.actionType === 'GATHER') {
                                     return null; 
                                 }

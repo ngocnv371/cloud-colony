@@ -155,7 +155,7 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
               name: 'Harvest Berries',
               actionType: 'GATHER',
               requiredSkill: SkillType.PLANTS,
-              requiredLevel: 2,
+              requiredLevel: 0,
               durationTicks: 10,
               outputs: [{ itemName: 'Berries', quantity: 8 }]
           }
