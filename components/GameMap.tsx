@@ -2,7 +2,7 @@
 import React, { useMemo } from 'react';
 import { Structure, Pawn, MAP_SIZE, StructureDefinition } from '../types';
 import { STRUCTURES } from '../constants';
-import { User, Hammer, Utensils, Zap, Box, Brain, TreeDeciduous, Grape, Sprout, Wheat, Carrot, Mountain } from 'lucide-react';
+import { User, Hammer, Utensils, Zap, Box, Brain, TreeDeciduous, Grape, Sprout, Wheat, Carrot, Mountain, Axe, Pickaxe, Scissors } from 'lucide-react';
 
 interface GameMapProps {
   structures: Structure[];
@@ -17,6 +17,7 @@ interface GameMapProps {
   dragStart: { x: number, y: number } | null;
   hoverPos: { x: number, y: number } | null;
   setHoverPos: (pos: { x: number, y: number } | null) => void;
+  queuedTargets: Map<string, string>;
 }
 
 const TILE_SIZE = 48; // px
@@ -33,7 +34,8 @@ const GameMap: React.FC<GameMapProps> = ({
   commandMode,
   dragStart,
   hoverPos,
-  setHoverPos
+  setHoverPos,
+  queuedTargets
 }) => {
   
   const mapStyle = {
@@ -79,6 +81,13 @@ const GameMap: React.FC<GameMapProps> = ({
           case 'URANIUM_VEIN': return <Mountain size={28} className="text-emerald-400 opacity-90 drop-shadow-[0_0_5px_rgba(52,211,153,0.5)]" />;
           default: return null;
       }
+  };
+
+  const getOverlayIcon = (activityId: string) => {
+      if (activityId.includes('chop')) return <Axe size={24} className="text-orange-400 drop-shadow-md animate-pulse" />;
+      if (activityId.includes('mine')) return <Pickaxe size={24} className="text-stone-300 drop-shadow-md animate-pulse" />;
+      if (activityId.includes('harvest')) return <Scissors size={24} className="text-green-400 drop-shadow-md animate-pulse" />;
+      return null;
   };
 
   return (
@@ -152,6 +161,13 @@ const GameMap: React.FC<GameMapProps> = ({
                     {struct.isBlueprint && (
                         <div className="absolute inset-0 flex items-center justify-center bg-blue-900/30">
                             <Hammer size={16} className="text-blue-200 animate-pulse" />
+                        </div>
+                    )}
+
+                    {/* Queued Job Overlay */}
+                    {queuedTargets.has(struct.id) && !struct.currentActivity && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 z-20">
+                            {getOverlayIcon(queuedTargets.get(struct.id)!)}
                         </div>
                     )}
 

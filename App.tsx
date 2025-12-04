@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import GameMap from './components/GameMap';
 import Sidebar from './components/Sidebar';
 import LogPanel from './components/LogPanel';
@@ -49,6 +49,23 @@ const App: React.FC = () => {
   useEffect(() => {
     stateRef.current = { pawns, structures, logs, globalJobQueue };
   }, [pawns, structures, logs, globalJobQueue]);
+
+  // Derived state for visual feedback on map
+  const queuedTargets = useMemo(() => {
+    const targets = new Map<string, string>();
+    // Global Queue
+    globalJobQueue.forEach(j => {
+        if(j.targetStructureId) targets.set(j.targetStructureId, j.activityId || j.type);
+    });
+    // Pawns
+    pawns.forEach(p => {
+        if(p.currentJob?.targetStructureId) targets.set(p.currentJob.targetStructureId, p.currentJob.activityId || p.currentJob.type);
+        p.jobQueue.forEach(j => {
+             if(j.targetStructureId) targets.set(j.targetStructureId, j.activityId || j.type);
+        });
+    });
+    return targets;
+  }, [globalJobQueue, pawns]);
 
   const addLog = (message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
       const newLog: LogEntry = {
@@ -403,6 +420,7 @@ const App: React.FC = () => {
             dragStart={dragStart}
             hoverPos={hoverPos}
             setHoverPos={setHoverPos}
+            queuedTargets={queuedTargets}
         />
         
         <ResourceHUD structures={structures} pawns={pawns} />
