@@ -1,7 +1,9 @@
+
+
 import React, { useState } from 'react';
 import { Pawn, Structure, StructureDefinition, SkillType, ActivityDefinition } from '../types';
 import { STRUCTURES, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID, getLevelRequirement } from '../constants';
-import { X, CheckCircle, Activity, Briefcase, Construction, Package, Sprout, Axe, Pickaxe, Scissors, BrickWall, Flame, Utensils, Brain, Hammer, Gamepad2, Swords, Box, Square } from 'lucide-react';
+import { X, CheckCircle, Activity, Briefcase, Construction, Package, Sprout, Axe, Pickaxe, Scissors, BrickWall, Flame, Utensils, Brain, Hammer, Gamepad2, Swords, Box, Square, Moon, Heart } from 'lucide-react';
 
 interface SidebarProps {
   selectedPawn: Pawn | undefined;
@@ -179,6 +181,56 @@ const Sidebar: React.FC<SidebarProps> = ({
                              <div className="text-blue-300">Fetching Ingredients...</div>
                         )}
                     </div>
+                )}
+             </div>
+
+             {/* NEEDS BARS */}
+             <div className="mb-4 space-y-2 border-b border-gray-600 pb-4">
+                <h3 className="text-xs font-semibold text-gray-400 uppercase">Needs</h3>
+                {selectedPawn.needs && (
+                    <>
+                        {/* Food */}
+                        <div className="w-full">
+                            <div className="flex justify-between text-[10px] mb-1">
+                                <span className="text-gray-300 flex items-center gap-1"><Utensils size={10} /> Food</span>
+                                <span className="font-mono">{Math.floor(selectedPawn.needs.food)}%</span>
+                            </div>
+                            <div className="h-1.5 w-full bg-gray-800 rounded-full overflow-hidden">
+                                <div 
+                                    className={`h-full ${selectedPawn.needs.food < 15 ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`} 
+                                    style={{ width: `${selectedPawn.needs.food}%` }}
+                                ></div>
+                            </div>
+                        </div>
+
+                        {/* Sleep */}
+                        <div className="w-full">
+                            <div className="flex justify-between text-[10px] mb-1">
+                                <span className="text-gray-300 flex items-center gap-1"><Moon size={10} /> Rest</span>
+                                <span className="font-mono">{Math.floor(selectedPawn.needs.sleep)}%</span>
+                            </div>
+                            <div className="h-1.5 w-full bg-gray-800 rounded-full overflow-hidden">
+                                <div 
+                                    className={`h-full ${selectedPawn.needs.sleep < 10 ? 'bg-red-500 animate-pulse' : 'bg-blue-400'}`} 
+                                    style={{ width: `${selectedPawn.needs.sleep}%` }}
+                                ></div>
+                            </div>
+                        </div>
+
+                        {/* Recreation */}
+                        <div className="w-full">
+                            <div className="flex justify-between text-[10px] mb-1">
+                                <span className="text-gray-300 flex items-center gap-1"><Heart size={10} /> Recreation</span>
+                                <span className="font-mono">{Math.floor(selectedPawn.needs.recreation)}%</span>
+                            </div>
+                            <div className="h-1.5 w-full bg-gray-800 rounded-full overflow-hidden">
+                                <div 
+                                    className={`h-full ${selectedPawn.needs.recreation < 20 ? 'bg-red-500 animate-pulse' : 'bg-pink-400'}`} 
+                                    style={{ width: `${selectedPawn.needs.recreation}%` }}
+                                ></div>
+                            </div>
+                        </div>
+                    </>
                 )}
              </div>
              

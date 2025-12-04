@@ -1,5 +1,7 @@
+
+
 import { Pawn, Structure, LogEntry, SkillType } from '../types';
-import { STRUCTURES, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID, CROPS, NATURAL_GROWTH_RATE, getLevelRequirement } from '../constants';
+import { STRUCTURES, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID, CROPS, NATURAL_GROWTH_RATE, getLevelRequirement, NEEDS } from '../constants';
 import { addItemToInventory } from '../utils/inventoryUtils';
 
 type LogEvent = Omit<LogEntry, 'id' | 'timestamp'>;
@@ -55,7 +57,6 @@ const handleWithdrawInteractions = (structure: Structure, pawns: Pawn[], logs: L
                         }
 
                         // Structure inventory is mutated in place as it's being mapped over in the main loop anyway
-                        // but strictly we should treat it carefully. For now, direct mutation of the structure passed in is handled by the caller creating a copy.
                         item.quantity -= amountToTake;
                         if (item.quantity <= 0) {
                             structure.inventory.splice(itemIndex, 1);
@@ -319,13 +320,18 @@ const updateActivityProgress = (structure: Structure, pawns: Pawn[], logs: LogEv
     }
     
     // Award XP
-    const updatedWorker = { ...worker, skillXp: { ...worker.skillXp }, skills: { ...worker.skills } };
+    const updatedWorker = { ...worker, skillXp: { ...worker.skillXp }, skills: { ...worker.skills }, needs: { ...worker.needs } };
     const xpGain = 1; // 1 XP per tick
     
     // Safe initialization just in case old pawn data exists
     if (updatedWorker.skillXp[activeSkill] === undefined) updatedWorker.skillXp[activeSkill] = 0;
     
     updatedWorker.skillXp[activeSkill] += xpGain;
+    
+    // RECREATION FILLING LOGIC
+    if (actDef && actDef.actionType === 'RECREATION') {
+        updatedWorker.needs.recreation = Math.min(100, updatedWorker.needs.recreation + NEEDS.REPLENISH.RECREATION);
+    }
     
     const req = getLevelRequirement(updatedWorker.skills[activeSkill]);
     if (updatedWorker.skillXp[activeSkill] >= req) {

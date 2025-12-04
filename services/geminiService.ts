@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { Pawn, SkillType } from "../types";
 
@@ -72,7 +73,8 @@ export const generateRandomPawn = async (): Promise<Partial<Pawn>> => {
       name: data.name,
       backstory: data.backstory,
       skills: safeSkills,
-      skillXp: { ...emptyXp }
+      skillXp: { ...emptyXp },
+      needs: { food: 100, sleep: 100, recreation: 100 }
     };
   } catch (error) {
     console.error("Gemini API error:", error);
@@ -94,6 +96,7 @@ const createFallbackPawn = (): Partial<Pawn> => {
       [SkillType.INTELLECTUAL]: Math.floor(Math.random() * 10),
       [SkillType.MELEE]: Math.floor(Math.random() * 10),
     },
-    skillXp: { ...emptyXp }
+    skillXp: { ...emptyXp },
+    needs: { food: 100, sleep: 100, recreation: 100 }
   };
 };

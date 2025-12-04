@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import GameMap from './components/GameMap';
 import Sidebar from './components/Sidebar';
@@ -24,7 +25,8 @@ const App: React.FC = () => {
       maxWeight: 35,
       currentJob: null,
       jobQueue: [],
-      status: 'Idle'
+      status: 'Idle',
+      needs: { food: 100, sleep: 100, recreation: 100 }
     })) as Pawn[]
   );
 
@@ -126,7 +128,7 @@ const App: React.FC = () => {
     // 0. Natural Spawning
     const structuresAfterSpawn = spawnNaturalResources(currentStructures);
 
-    // 1. Process Pawns (Movement, Idle Job Assignment, Personal Queue)
+    // 1. Process Pawns (Movement, Needs, Idle Job Assignment, Personal Queue)
     const { nextPawns: intermediatePawns, nextQueue: queueAfterPawns, logs: pawnLogs } = processPawns(currentPawns, structuresAfterSpawn, currentQueue);
     
     // 2. Process Structures (Crop/Natural Growth, Activities, Withdraw Interactions)
@@ -430,7 +432,8 @@ const App: React.FC = () => {
             maxWeight: 35,
             currentJob: null,
             jobQueue: [],
-            status: 'Idle'
+            status: 'Idle',
+            needs: { food: 100, sleep: 100, recreation: 100 }
         };
         setPawns(prev => [...prev, newPawn]);
         addLog(`Recruited ${newPawn.name}: ${newPawn.backstory}`, 'success');

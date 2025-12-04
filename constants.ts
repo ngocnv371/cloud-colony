@@ -9,6 +9,34 @@ export const HARVEST_ACTIVITY_ID = 'harvest_crop';
 export const NATURAL_SPAWN_CHANCE = 0.01; // 1% chance per tick to try spawning logic
 export const NATURAL_GROWTH_RATE = 0.5; // +0.5% growth per tick (~50 seconds to mature)
 
+// Needs Constants (Based on 250ms tick rate = 4 ticks/sec)
+export const NEEDS = {
+    DECAY: {
+        FOOD: 0.416,       // 100 / 60s / 4 ticks = ~0.416 per tick
+        SLEEP: 0.138,      // 100 / 180s / 4 ticks = ~0.138 per tick
+        RECREATION: 0.138, // 100 / 180s / 4 ticks = ~0.138 per tick
+    },
+    REPLENISH: {
+        SLEEP: 0.5,        // +2 per second
+        RECREATION: 0.5,   // +2 per second
+        EAT: 100           // Instant fill
+    },
+    CRITICAL: {
+        SLEEP: 10,
+        FOOD: 15,
+        RECREATION: 20
+    }
+};
+
+export const FOOD_ITEMS: Record<string, number> = {
+    'Berries': 20,
+    'Simple Meal': 100,
+    'Fine Meal': 100,
+    'Corn': 15,
+    'Potato': 10,
+    'Rice': 5
+};
+
 export const getLevelRequirement = (level: number) => {
     // 100 XP base, increases with level. 
     // At 4 ticks/sec (1 tick = 1 XP), level 0->1 takes 25 seconds.

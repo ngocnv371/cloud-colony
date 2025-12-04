@@ -22,6 +22,12 @@ export interface Item {
   quantity: number;
 }
 
+export interface Needs {
+  food: number;      // 0-100
+  sleep: number;     // 0-100
+  recreation: number;// 0-100
+}
+
 export interface Pawn {
   id: string;
   name: string;
@@ -31,11 +37,12 @@ export interface Pawn {
   color: string;
   skills: Record<SkillType, number>;
   skillXp: Record<SkillType, number>; // Current XP for current level
+  needs: Needs;
   inventory: Item[];
   maxWeight: number;
   currentJob: Job | null;
   jobQueue: Job[]; // Queue of future jobs
-  status: string; // "Idle", "Moving", "Working"
+  status: string; // "Idle", "Moving", "Working", "Sleeping", "Eating"
 }
 
 export type ActivityType = 'CRAFT' | 'GATHER' | 'STORE' | 'WORK' | 'RECREATION';
@@ -87,7 +94,7 @@ export interface Structure {
 
 export interface Job {
   id: string;
-  type: 'MOVE' | 'WORK' | 'HAUL' | 'WITHDRAW';
+  type: 'MOVE' | 'WORK' | 'HAUL' | 'WITHDRAW' | 'SLEEP' | 'EAT';
   targetX?: number;
   targetY?: number;
   targetStructureId?: string;
