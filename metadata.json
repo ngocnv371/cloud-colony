@@ -1,0 +1,5 @@
+{
+  "name": "Colony Sim MVP",
+  "description": "A RimWorld-like colony simulator where you manage pawns, build structures, and perform skilled activities on a 2D grid. Features AI-generated colonists.",
+  "requestFramePermissions": []
+}
