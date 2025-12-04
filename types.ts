@@ -34,6 +34,8 @@ export interface Pawn {
   status: string; // "Idle", "Moving", "Working"
 }
 
+export type ActivityType = 'CRAFT' | 'GATHER' | 'STORE';
+
 export interface StructureDefinition {
   type: string;
   name: string;
@@ -42,11 +44,13 @@ export interface StructureDefinition {
   color: string;
   cost: { itemName: string; amount: number }[];
   activities: ActivityDefinition[];
+  isNatural?: boolean; // If true, cannot be built by player, spawns naturally
 }
 
 export interface ActivityDefinition {
   id: string;
   name: string;
+  actionType: ActivityType;
   requiredSkill: SkillType;
   requiredLevel: number;
   durationTicks: number; // How long it takes
@@ -58,6 +62,7 @@ export interface Structure {
   type: string;
   x: number;
   y: number;
+  inventory: Item[];
   currentActivity?: {
     activityId: string;
     progress: number;

@@ -21,6 +21,7 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
       {
         id: 'cook_simple',
         name: 'Cook Simple Meal',
+        actionType: 'CRAFT',
         requiredSkill: SkillType.COOKING,
         requiredLevel: 0,
         durationTicks: 10,
@@ -29,6 +30,7 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
       {
         id: 'cook_fine',
         name: 'Cook Fine Meal',
+        actionType: 'CRAFT',
         requiredSkill: SkillType.COOKING,
         requiredLevel: 5,
         durationTicks: 20,
@@ -47,6 +49,7 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
       {
         id: 'butcher_creature',
         name: 'Butcher Creature',
+        actionType: 'CRAFT',
         requiredSkill: SkillType.COOKING,
         requiredLevel: 2,
         durationTicks: 15,
@@ -65,6 +68,7 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
       {
         id: 'research_basic',
         name: 'Conduct Research',
+        actionType: 'CRAFT',
         requiredSkill: SkillType.INTELLECTUAL,
         requiredLevel: 3,
         durationTicks: 40,
@@ -83,12 +87,72 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
       {
         id: 'craft_club',
         name: 'Craft Club',
+        actionType: 'CRAFT',
         requiredSkill: SkillType.CONSTRUCTION,
         requiredLevel: 2,
         durationTicks: 30,
         outputs: [{ itemName: 'Wooden Club', quantity: 1 }]
       }
     ]
+  },
+  CHEST: {
+    type: 'CHEST',
+    name: 'Storage Chest',
+    width: 1,
+    height: 1,
+    color: 'bg-amber-800',
+    cost: [],
+    activities: [
+        {
+            id: 'stock_items',
+            name: 'Stock All Items',
+            actionType: 'STORE',
+            requiredSkill: SkillType.SOCIAL, // Basic organizational skill
+            requiredLevel: 0,
+            durationTicks: 5,
+            outputs: []
+        }
+    ]
+  },
+  TREE: {
+      type: 'TREE',
+      name: 'Tree',
+      width: 1,
+      height: 1,
+      color: 'bg-green-700',
+      isNatural: true,
+      cost: [],
+      activities: [
+          {
+              id: 'chop_wood',
+              name: 'Chop Wood',
+              actionType: 'GATHER',
+              requiredSkill: SkillType.PLANTS,
+              requiredLevel: 0,
+              durationTicks: 20,
+              outputs: [{ itemName: 'Wood', quantity: 15 }]
+          }
+      ]
+  },
+  BERRY_BUSH: {
+      type: 'BERRY_BUSH',
+      name: 'Berry Bush',
+      width: 1,
+      height: 1,
+      color: 'bg-green-500',
+      isNatural: true,
+      cost: [],
+      activities: [
+          {
+              id: 'harvest_berry',
+              name: 'Harvest Berries',
+              actionType: 'GATHER',
+              requiredSkill: SkillType.PLANTS,
+              requiredLevel: 2,
+              durationTicks: 10,
+              outputs: [{ itemName: 'Berries', quantity: 8 }]
+          }
+      ]
   }
 };
 

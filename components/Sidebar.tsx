@@ -44,7 +44,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         <section>
           <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Architect</h2>
           <div className="grid grid-cols-3 gap-2">
-            {Object.values(STRUCTURES).map(def => (
+            {Object.values(STRUCTURES).filter(def => !def.isNatural).map(def => (
               <button
                 key={def.type}
                 onClick={() => setBuildMode(buildMode?.type === def.type ? null : def)}
@@ -131,6 +131,23 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <h2 className="text-lg font-bold text-white mb-1">{structureDef.name}</h2>
                 <p className="text-xs text-gray-400 mb-4">Structure ID: {selectedStructure.id.slice(0,6)}</p>
                 
+                {/* Structure Inventory */}
+                <div className="mb-4 bg-black/20 p-2 rounded">
+                    <h3 className="text-xs font-semibold text-gray-400 uppercase mb-1">Stored Items</h3>
+                    {selectedStructure.inventory.length === 0 ? (
+                        <p className="text-xs text-gray-500">Empty</p>
+                    ) : (
+                        <ul className="text-xs space-y-1 max-h-32 overflow-y-auto">
+                            {selectedStructure.inventory.map((item, idx) => (
+                                <li key={idx} className="flex justify-between text-gray-300">
+                                    <span>{item.name}</span>
+                                    <span>x{item.quantity}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+
                 {structureDef.activities.length > 0 ? (
                     <div className="space-y-2">
                         <h3 className="text-xs font-semibold text-gray-400 uppercase">Available Orders</h3>
@@ -147,7 +164,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                                     reason = `Need ${act.requiredSkill} ${act.requiredLevel}`;
                                 } else if (selectedPawn.status !== 'Idle') {
                                     reason = "Pawn is busy";
-                                    canDo = true; // Still allow overriding (queueing logic not implemented, just override)
+                                    canDo = true; // Still allow overriding
+                                } else if (act.actionType === 'STORE' && selectedPawn.inventory.length === 0) {
+                                    reason = "Inventory empty";
+                                    canDo = false;
                                 } else {
                                     canDo = true;
                                 }
@@ -158,8 +178,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                                     key={act.id}
                                     disabled={!selectedPawn || (!canDo && selectedPawn?.status !== 'Moving' && selectedPawn?.status !== 'Working')} 
                                     onClick={() => selectedPawn && onOrderJob(selectedPawn.id, selectedStructure.id, act.id)}
-                                    className={`w-full p-2 rounded text-left flex justify-between items-center group
-                                        ${(!selectedPawn) 
+                                    className={`w-full p-2 rounded text-left flex justify-between items-center group transition-colors
+                                        ${(!selectedPawn || !canDo) 
                                             ? 'opacity-50 cursor-not-allowed bg-gray-800' 
                                             : 'bg-gray-600 hover:bg-blue-600 text-white'
                                         }
@@ -170,6 +190,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                                         <div className="text-[10px] text-gray-300">
                                             Req: {act.requiredSkill} {act.requiredLevel}
                                         </div>
+                                        {reason && !canDo && (
+                                            <div className="text-[10px] text-red-300">{reason}</div>
+                                        )}
                                     </div>
                                     {canDo && <CheckCircle size={16} className="text-green-400 opacity-0 group-hover:opacity-100" />}
                                 </button>

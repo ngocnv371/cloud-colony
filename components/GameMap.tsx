@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Structure, Pawn, MAP_SIZE, StructureDefinition } from '../types';
 import { STRUCTURES } from '../constants';
-import { User, Hammer, Utensils, Zap, Box, Brain } from 'lucide-react';
+import { User, Hammer, Utensils, Zap, Box, Brain, TreeDeciduous, Grape } from 'lucide-react';
 
 interface GameMapProps {
   structures: Structure[];
@@ -102,6 +102,9 @@ const GameMap: React.FC<GameMapProps> = ({
                     {struct.type === 'CAMPFIRE' && <Utensils size={24} className="text-white opacity-80" />}
                     {struct.type === 'RESEARCH_BENCH' && <Brain size={24} className="text-white opacity-80" />}
                     {struct.type === 'WORKBENCH' && <Hammer size={24} className="text-white opacity-80" />}
+                    {struct.type === 'CHEST' && <Box size={24} className="text-white opacity-80" />}
+                    {struct.type === 'TREE' && <TreeDeciduous size={32} className="text-green-300 opacity-90" />}
+                    {struct.type === 'BERRY_BUSH' && <Grape size={24} className="text-red-300 opacity-90" />}
                     
                     {/* Progress Bar for Active Job */}
                     {struct.currentActivity && (

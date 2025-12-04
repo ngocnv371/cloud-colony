@@ -20,7 +20,32 @@ const App: React.FC = () => {
     })) as Pawn[]
   );
 
-  const [structures, setStructures] = useState<Structure[]>([]);
+  const [structures, setStructures] = useState<Structure[]>(() => {
+      // Generate some initial resources
+      const initialStructures: Structure[] = [];
+      
+      // Random Trees
+      for(let i=0; i<15; i++) {
+          initialStructures.push({
+              id: `tree-${i}`,
+              type: 'TREE',
+              x: Math.floor(Math.random() * MAP_SIZE),
+              y: Math.floor(Math.random() * MAP_SIZE),
+              inventory: []
+          });
+      }
+      // Random Bushes
+      for(let i=0; i<10; i++) {
+          initialStructures.push({
+              id: `bush-${i}`,
+              type: 'BERRY_BUSH',
+              x: Math.floor(Math.random() * MAP_SIZE),
+              y: Math.floor(Math.random() * MAP_SIZE),
+              inventory: []
+          });
+      }
+      return initialStructures;
+  });
   
   // Interaction State
   const [selectedPawnId, setSelectedPawnId] = useState<string | null>(null);
@@ -124,21 +149,35 @@ const App: React.FC = () => {
                 
                 if (newProgress >= 100) {
                     // Finished!
-                    // Add items to worker inventory
-                    if (actDef.outputs) {
-                        actDef.outputs.forEach(out => {
-                            worker.inventory.push({
-                                id: `item-${Date.now()}-${Math.random()}`,
-                                name: out.itemName,
-                                quantity: out.quantity,
-                                weight: 1 // simplified
+                    
+                    if (actDef.actionType === 'GATHER' || actDef.actionType === 'CRAFT') {
+                        // Add items to worker inventory
+                        if (actDef.outputs) {
+                            actDef.outputs.forEach(out => {
+                                worker.inventory.push({
+                                    id: `item-${Date.now()}-${Math.random()}`,
+                                    name: out.itemName,
+                                    quantity: out.quantity,
+                                    weight: 1 // simplified
+                                });
                             });
-                        });
+                        }
+                    } else if (actDef.actionType === 'STORE') {
+                        // Move items from worker to structure inventory
+                        if (worker.inventory.length > 0) {
+                            struct.inventory.push(...worker.inventory);
+                            worker.inventory = [];
+                        }
                     }
                     
                     // Reset pawn job
                     worker.currentJob = null;
                     worker.status = 'Idle';
+
+                    // If GATHER, the structure (resource) is consumed
+                    if (actDef.actionType === 'GATHER') {
+                        return null; // Mark for deletion
+                    }
 
                     return { ...struct, currentActivity: undefined };
                 }
@@ -147,15 +186,9 @@ const App: React.FC = () => {
             }
         }
         return struct;
-    });
+    }).filter(s => s !== null) as Structure[];
 
     // Sync state
-    // Note: We modified 'worker' inside the nextPawns map locally, but nextPawns needs to reflect the inventory changes from the structure block?
-    // This is the tricky part of not using a robust ECS.
-    // Let's patch the inventory update back to pawns.
-    // Since we mutate 'worker' object in the structure loop, and 'worker' is a ref to an object in 'nextPawns' array, it *should* work if we are careful about references.
-    // Actually, map creates shallow copies. The 'worker' find in nextStructures loop refers to the object inside nextPawns array.
-    
     setPawns(nextPawns);
     setStructures(nextStructures);
   };
@@ -176,7 +209,8 @@ const App: React.FC = () => {
                 id: `struct-${Date.now()}`,
                 type: buildMode.type,
                 x,
-                y
+                y,
+                inventory: []
             };
             setStructures([...structures, newStruct]);
             // Stay in build mode for multiple placement
@@ -200,13 +234,8 @@ const App: React.FC = () => {
 
     if (clickedStructure) {
         setSelectedStructureId(clickedStructure.id);
-        
-        // If we have a selected pawn, clicking a structure *might* be a context action in a full game.
-        // For this UI, we keep the pawn selected so the sidebar can show "Order Job" buttons on the structure.
         if (!selectedPawnId) {
-            // Only clear pawn if we didn't just click one (handled above)
-            // Wait, we want to see structure details.
-            // Let's allow selecting both: "Pawn X selected, looking at Structure Y"
+            // Keep pawn selected if we want to order jobs
         } 
         return;
     }
