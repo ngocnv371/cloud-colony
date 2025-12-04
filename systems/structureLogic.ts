@@ -1,14 +1,13 @@
-
-
 import { Pawn, Structure, LogEntry, SkillType } from '../types';
-import { STRUCTURES, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID, CROPS, getLevelRequirement } from '../constants';
+import { STRUCTURES, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID, CROPS, NATURAL_GROWTH_RATE, getLevelRequirement } from '../constants';
 import { addItemToInventory } from '../utils/inventoryUtils';
 
 type LogEvent = Omit<LogEntry, 'id' | 'timestamp'>;
 
 // --- Helper Functions ---
 
-const updateCropGrowth = (structure: Structure): Structure => {
+const updateGrowth = (structure: Structure): Structure => {
+    // 1. Farm Crops
     if (structure.type === 'FARM_PLOT' && structure.crop && structure.crop.planted && structure.crop.growth < 100) {
         const cropDef = CROPS[structure.crop.type];
         if (cropDef) {
@@ -21,6 +20,15 @@ const updateCropGrowth = (structure: Structure): Structure => {
             };
         }
     }
+    
+    // 2. Natural Growth (Trees/Bushes)
+    if ((structure.type === 'TREE' || structure.type === 'BERRY_BUSH') && structure.growth !== undefined && structure.growth < 100) {
+        return {
+            ...structure,
+            growth: Math.min(100, structure.growth + NATURAL_GROWTH_RATE)
+        };
+    }
+    
     return structure;
 };
 
@@ -206,7 +214,13 @@ const completeActivity = (structure: Structure, pawns: Pawn[], workerIdx: number
                 let quantityToAdd = out.quantity;
                 if (actDef.actionType === 'GATHER') {
                      const skillLevel = worker.skills[actDef.requiredSkill] || 0;
-                     const multiplier = 0.5 + (skillLevel / 20.0) * 1.5;
+                     let multiplier = 0.5 + (skillLevel / 20.0) * 1.5;
+                     
+                     // Apply Growth Modifier for natural structures
+                     if (nextStruct.growth !== undefined) {
+                         multiplier *= (nextStruct.growth / 100);
+                     }
+                     
                      quantityToAdd = Math.floor(out.quantity * multiplier);
                 }
 
@@ -365,7 +379,7 @@ export const processStructures = (
     const finalPawns = [...currentPawns]; // Shallow copy of array, items are refs
     
     const nextStructures = currentStructures.map(struct => {
-        let nextStruct = updateCropGrowth(struct);
+        let nextStruct = updateGrowth(struct);
         
         handleWithdrawInteractions(nextStruct, finalPawns, logs);
         

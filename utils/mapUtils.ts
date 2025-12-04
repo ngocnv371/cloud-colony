@@ -13,12 +13,14 @@ export const generateInitialStructures = (): Structure[] => {
               if (!initialStructures.some(s => s.x === x && s.y === y)) break;
           }
           if (x !== undefined && y !== undefined) {
+              const isNatural = type === 'TREE' || type === 'BERRY_BUSH';
               initialStructures.push({
                   id: `${type.toLowerCase()}-${i}`,
                   type: type,
                   x,
                   y,
-                  inventory: []
+                  inventory: [],
+                  growth: isNatural ? 100 : undefined // Start map gen items fully grown
               });
           }
         }
@@ -63,11 +65,17 @@ export const findBatchTargets = (startStruct: Structure, activityId: string, str
                     // Construct: Must be blueprint of same type
                     if (neighbor.isBlueprint && neighbor.type === startStruct.type) isValid = true;
                 } else if (activityId === HARVEST_ACTIVITY_ID) {
-                    // Harvest: Must be Farm Plot with Mature Crop
+                    // Harvest Farm Plot
                     if (neighbor.type === 'FARM_PLOT' && neighbor.crop && neighbor.crop.growth >= 100) isValid = true;
                 } else if (activityId.startsWith('plant_')) {
                     // Plant: Must be Farm Plot with NO crop
                     if (neighbor.type === 'FARM_PLOT' && (!neighbor.crop || !neighbor.crop.planted)) isValid = true;
+                } else if (activityId === 'chop_wood' && neighbor.type === 'TREE') {
+                    // Batch Chop (Any growth)
+                    isValid = true;
+                } else if (activityId === 'harvest_berry' && neighbor.type === 'BERRY_BUSH') {
+                    // Batch Berry (>= 80%)
+                    if (neighbor.growth === undefined || neighbor.growth >= 80) isValid = true;
                 }
 
                 if (isValid) {

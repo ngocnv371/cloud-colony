@@ -1,5 +1,3 @@
-
-
 import React, { useState } from 'react';
 import { Pawn, Structure, StructureDefinition, SkillType, ActivityDefinition } from '../types';
 import { STRUCTURES, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID, getLevelRequirement } from '../constants';
@@ -268,6 +266,26 @@ const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                 )}
 
+                {/* Natural Growth Info */}
+                {(selectedStructure.type === 'TREE' || selectedStructure.type === 'BERRY_BUSH') && selectedStructure.growth !== undefined && (
+                     <div className="mb-2 bg-green-900/30 border border-green-800 p-2 rounded">
+                        <div className="flex justify-between items-center mb-1">
+                            <span className="font-bold text-green-300 flex items-center gap-2">
+                                <Sprout size={14}/> Growth
+                            </span>
+                            <span className="text-xs text-gray-300">{Math.floor(selectedStructure.growth)}%</span>
+                        </div>
+                        <div className="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden">
+                            <div className="h-full bg-green-500" style={{ width: `${selectedStructure.growth}%` }}></div>
+                        </div>
+                        {selectedStructure.growth < 100 ? (
+                             <div className="text-[10px] text-gray-400 mt-1 italic">Growing... (Yield: {Math.floor(selectedStructure.growth)}%)</div>
+                        ) : (
+                             <div className="text-[10px] text-yellow-300 mt-1 font-bold uppercase tracking-wider">Mature</div>
+                        )}
+                    </div>
+                )}
+
                 {/* Structure Inventory */}
                 <div className="mb-4 bg-black/20 p-2 rounded">
                     <h3 className="text-xs font-semibold text-gray-400 uppercase mb-1">Stored Items</h3>
@@ -320,9 +338,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                             </div>
                         </button>
                     ) : (
-                        // Standard Activities + Farming Logic
+                        // Standard Activities + Farming/Growth Logic
                         structureDef.activities.length > 0 ? structureDef.activities
                             .filter(act => {
+                                // Farm Logic
                                 if (selectedStructure.type === 'FARM_PLOT') {
                                     const hasCrop = selectedStructure.crop && selectedStructure.crop.planted;
                                     const isMature = selectedStructure.crop && selectedStructure.crop.growth >= 100;
@@ -334,6 +353,15 @@ const Sidebar: React.FC<SidebarProps> = ({
                                         return !hasCrop;
                                     }
                                 }
+                                // Natural Growth Logic (Trees/Bushes)
+                                if (selectedStructure.growth !== undefined) {
+                                    if (act.actionType === 'GATHER') {
+                                        // Allow Trees always (or growth > 0 implicit in existence)
+                                        // Allow Berries if >= 80
+                                        if (selectedStructure.type === 'BERRY_BUSH' && selectedStructure.growth < 80) return false;
+                                    }
+                                }
+
                                 return true;
                             })
                             .map((act) => {

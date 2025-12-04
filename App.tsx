@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import GameMap from './components/GameMap';
 import Sidebar from './components/Sidebar';
 import LogPanel from './components/LogPanel';
 import ResourceHUD from './components/ResourceHUD';
 import { Pawn, Structure, StructureDefinition, Job, MAP_SIZE, TICK_RATE_MS, LogEntry, SkillType } from './types';
-import { STRUCTURES, INITIAL_PAWNS, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID } from './constants';
+import { STRUCTURES, INITIAL_PAWNS, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID, NATURAL_SPAWN_CHANCE } from './constants';
 import { generateRandomPawn } from './services/geminiService';
 
 // Logic Modules
@@ -88,6 +87,30 @@ const App: React.FC = () => {
       setLogs(prev => [...prev.slice(-(50 - entries.length)), ...entries]);
   };
 
+  // --- Helpers ---
+  const spawnNaturalResources = (currentStructures: Structure[]) => {
+      if (Math.random() < NATURAL_SPAWN_CHANCE) {
+          const type = Math.random() > 0.6 ? 'TREE' : 'BERRY_BUSH'; // 40% Tree, 60% Bush
+          const x = Math.floor(Math.random() * MAP_SIZE);
+          const y = Math.floor(Math.random() * MAP_SIZE);
+
+          // Check if occupied
+          const occupied = currentStructures.some(s => s.x === x && s.y === y);
+          if (!occupied) {
+              const newStruct: Structure = {
+                  id: `${type.toLowerCase()}-${Date.now()}-${Math.random()}`,
+                  type,
+                  x,
+                  y,
+                  inventory: [],
+                  growth: 0 // Start as a sapling
+              };
+              return [...currentStructures, newStruct];
+          }
+      }
+      return currentStructures;
+  };
+
   // --- Game Loop ---
   useEffect(() => {
     const interval = setInterval(() => {
@@ -100,12 +123,15 @@ const App: React.FC = () => {
   const tick = () => {
     const { pawns: currentPawns, structures: currentStructures, globalJobQueue: currentQueue } = stateRef.current;
     
+    // 0. Natural Spawning
+    const structuresAfterSpawn = spawnNaturalResources(currentStructures);
+
     // 1. Process Pawns (Movement, Idle Job Assignment, Personal Queue)
-    const { nextPawns: intermediatePawns, nextQueue: queueAfterPawns, logs: pawnLogs } = processPawns(currentPawns, currentStructures, currentQueue);
+    const { nextPawns: intermediatePawns, nextQueue: queueAfterPawns, logs: pawnLogs } = processPawns(currentPawns, structuresAfterSpawn, currentQueue);
     
-    // 2. Process Structures (Crop Growth, Activities, Withdraw Interactions)
+    // 2. Process Structures (Crop/Natural Growth, Activities, Withdraw Interactions)
     // Note: This step also processes pawn work progress and returns the final state of pawns for this tick
-    const { nextStructures, nextPawns: finalPawns, logs: structureLogs } = processStructures(currentStructures, intermediatePawns);
+    const { nextStructures, nextPawns: finalPawns, logs: structureLogs } = processStructures(structuresAfterSpawn, intermediatePawns);
 
     // Sync state
     if (JSON.stringify(currentQueue) !== JSON.stringify(queueAfterPawns)) {
@@ -117,15 +143,22 @@ const App: React.FC = () => {
     addLogs([...pawnLogs, ...structureLogs]);
   };
 
-  // --- Helpers ---
+  // --- Command Helper ---
   const getCommandActivity = (structure: Structure, mode: 'HARVEST' | 'CHOP' | 'MINE'): string | null => {
       const def = STRUCTURES[structure.type];
       if (!def) return null;
       
-      if (mode === 'CHOP' && def.type === 'TREE') return 'chop_wood';
+      if (mode === 'CHOP' && def.type === 'TREE') {
+          // Allow chopping any tree
+          return 'chop_wood';
+      }
       
       if (mode === 'HARVEST') {
-          if (def.type === 'BERRY_BUSH') return 'harvest_berry';
+          if (def.type === 'BERRY_BUSH') {
+              // Allow harvest if >= 80%
+              if (structure.growth !== undefined && structure.growth < 80) return null;
+              return 'harvest_berry';
+          }
           if (def.type === 'FARM_PLOT' && structure.crop && structure.crop.growth >= 100) return HARVEST_ACTIVITY_ID;
       }
       

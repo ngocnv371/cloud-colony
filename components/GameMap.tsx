@@ -136,6 +136,13 @@ const GameMap: React.FC<GameMapProps> = ({
             if (!def) return null;
             const isSelected = selectedStructureId === struct.id;
             
+            // Calculate scale based on growth for natural structures
+            let scale = 1;
+            if ((struct.type === 'TREE' || struct.type === 'BERRY_BUSH') && struct.growth !== undefined) {
+                // Map 0-100 to 0.4-1.0 scale
+                scale = 0.4 + (struct.growth / 100) * 0.6;
+            }
+
             return (
                 <div
                     key={struct.id}
@@ -148,6 +155,7 @@ const GameMap: React.FC<GameMapProps> = ({
                         top: struct.y * TILE_SIZE,
                         width: def.width * TILE_SIZE,
                         height: def.height * TILE_SIZE,
+                        transform: `scale(${scale})`, // Apply growth scaling
                     }}
                 >
                     {/* Icons */}

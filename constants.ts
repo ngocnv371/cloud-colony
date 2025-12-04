@@ -5,6 +5,10 @@ import { StructureDefinition, SkillType, Pawn } from './types';
 export const CONSTRUCT_ACTIVITY_ID = 'construct_structure';
 export const HARVEST_ACTIVITY_ID = 'harvest_crop';
 
+// Natural Spawning Constants
+export const NATURAL_SPAWN_CHANCE = 0.01; // 1% chance per tick to try spawning logic
+export const NATURAL_GROWTH_RATE = 0.5; // +0.5% growth per tick (~50 seconds to mature)
+
 export const getLevelRequirement = (level: number) => {
     // 100 XP base, increases with level. 
     // At 4 ticks/sec (1 tick = 1 XP), level 0->1 takes 25 seconds.

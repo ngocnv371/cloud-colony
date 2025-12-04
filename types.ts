@@ -76,6 +76,7 @@ export interface Structure {
   inventory: Item[];
   isBlueprint?: boolean; // If true, it is under construction
   crop?: CropData; // For farms
+  growth?: number; // For natural structures (Trees, Bushes) 0-100
   currentActivity?: {
     activityId: string;
     progress: number;
