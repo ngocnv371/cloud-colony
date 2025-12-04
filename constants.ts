@@ -229,5 +229,18 @@ export const INITIAL_PAWNS = [
       [SkillType.INTELLECTUAL]: 0,
       [SkillType.MELEE]: 4
     }
+  },
+  {
+    name: 'Serenity',
+    color: 'bg-pink-400',
+    skills: {
+      [SkillType.CONSTRUCTION]: 2,
+      [SkillType.COOKING]: 5,
+      [SkillType.PLANTS]: 8,
+      [SkillType.MINING]: 0,
+      [SkillType.SOCIAL]: 5,
+      [SkillType.INTELLECTUAL]: 2,
+      [SkillType.MELEE]: 1
+    }
   }
 ];

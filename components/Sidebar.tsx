@@ -7,7 +7,7 @@ import { X, CheckCircle, Activity, Briefcase, Construction, Package, Sprout } fr
 interface SidebarProps {
   selectedPawn: Pawn | undefined;
   selectedStructure: Structure | undefined;
-  onOrderJob: (pawnId: string, structureId: string, activityId: string, count: number) => void;
+  onOrderJob: (pawnId: string | null, structureId: string, activityId: string, count: number) => void;
   buildMode: StructureDefinition | null;
   setBuildMode: (def: StructureDefinition | null) => void;
   pawns: Pawn[];
@@ -211,10 +211,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                     {selectedStructure.isBlueprint ? (
                         // Blueprint Construction Action
                          <button
-                            onClick={() => selectedPawn && onOrderJob(selectedPawn.id, selectedStructure.id, CONSTRUCT_ACTIVITY_ID, 1)}
-                            disabled={!selectedPawn}
+                            onClick={() => onOrderJob(selectedPawn?.id || null, selectedStructure.id, CONSTRUCT_ACTIVITY_ID, 1)}
                             className={`w-full p-3 rounded text-left flex justify-between items-center group transition-colors border border-dashed
-                                ${!selectedPawn ? 'opacity-50 cursor-not-allowed bg-gray-800' : 'bg-blue-900/40 hover:bg-blue-800 border-blue-500 text-blue-100'}
+                                bg-blue-900/40 hover:bg-blue-800 border-blue-500 text-blue-100
                             `}
                         >
                             <div className="flex flex-col">
@@ -247,7 +246,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 let reason = "";
                                 
                                 if (!selectedPawn) {
-                                    reason = "Select a pawn first";
+                                    // With global queue, not selecting a pawn is fine, they just get queued
+                                    canDo = true;
                                 } else {
                                     const skillLevel = selectedPawn.skills[act.requiredSkill];
                                     if (skillLevel < act.requiredLevel) {
@@ -263,10 +263,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 return (
                                     <button
                                         key={act.id}
-                                        disabled={!selectedPawn || (!canDo && !reason.includes("busy"))} 
-                                        onClick={() => selectedPawn && onOrderJob(selectedPawn.id, selectedStructure.id, act.id, repeatCount)}
+                                        disabled={!canDo && !!selectedPawn} 
+                                        onClick={() => onOrderJob(selectedPawn?.id || null, selectedStructure.id, act.id, repeatCount)}
                                         className={`w-full p-2 rounded text-left flex justify-between items-center group transition-colors relative mb-1
-                                            ${(!selectedPawn || !canDo) 
+                                            ${(!canDo && !!selectedPawn)
                                                 ? 'opacity-50 cursor-not-allowed bg-gray-800' 
                                                 : 'bg-gray-600 hover:bg-blue-600 text-white'
                                             }

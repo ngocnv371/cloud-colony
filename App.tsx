@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import GameMap from './components/GameMap';
 import Sidebar from './components/Sidebar';
@@ -52,6 +51,7 @@ const App: React.FC = () => {
   });
   
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [globalJobQueue, setGlobalJobQueue] = useState<Job[]>([]);
 
   // Interaction State
   const [selectedPawnId, setSelectedPawnId] = useState<string | null>(null);
@@ -62,10 +62,10 @@ const App: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
 
   // Refs for Game Loop to access latest state without re-triggering effect
-  const stateRef = useRef({ pawns, structures, logs });
+  const stateRef = useRef({ pawns, structures, logs, globalJobQueue });
   useEffect(() => {
-    stateRef.current = { pawns, structures, logs };
-  }, [pawns, structures, logs]);
+    stateRef.current = { pawns, structures, logs, globalJobQueue };
+  }, [pawns, structures, logs, globalJobQueue]);
 
   const addLog = (message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
       const newLog: LogEntry = {
@@ -75,6 +75,73 @@ const App: React.FC = () => {
           type
       };
       setLogs(prev => [...prev.slice(-49), newLog]); // Keep last 50
+  };
+
+  // Helper to handle inventory stacking
+  const addItemToInventory = (inventory: Item[], newItem: Item) => {
+      const existing = inventory.find(i => i.name === newItem.name);
+      if (existing) {
+          existing.quantity += newItem.quantity;
+      } else {
+          inventory.push(newItem);
+      }
+  };
+
+  // Helper to assign a job to a pawn (calculating resources if needed)
+  // Returns modified pawn if success, null if failed
+  const assignJobToPawn = (pawn: Pawn, job: Job, allStructures: Structure[]): Pawn | null => {
+      const targetStructure = allStructures.find(s => s.id === job.targetStructureId);
+      if (!targetStructure) return null;
+
+      const def = STRUCTURES[targetStructure.type];
+      let requiredItems: {itemName: string, quantity: number}[] = [];
+      
+      if (job.activityId === CONSTRUCT_ACTIVITY_ID) {
+          requiredItems = def.cost.map(c => ({ itemName: c.itemName, quantity: c.amount }));
+      } else if (job.activityId) {
+          const act = def.activities.find(a => a.id === job.activityId);
+          if (act && act.inputs) {
+             requiredItems = act.inputs.map(i => ({ itemName: i.itemName, quantity: i.quantity * (job.activityRepeats || 1) }));
+          }
+      }
+
+      let jobChain: Job = job;
+
+      if (requiredItems.length > 0) {
+          const sources = findSourceForItems(requiredItems, pawn.inventory, allStructures);
+          if (!sources) return null; // Cannot find resources
+
+          let firstJob: Job | null = null;
+          let currentLink: Job | null = null;
+
+          sources.forEach(source => {
+               const fetchJob: Job = {
+                   id: `job-fetch-${Date.now()}-${source.itemName}-${Math.random()}`,
+                   type: 'WITHDRAW',
+                   targetStructureId: source.sourceId,
+                   itemsToHandle: [{ itemName: source.itemName, quantity: source.quantity }]
+               };
+               
+               if (!firstJob) {
+                   firstJob = fetchJob;
+                   currentLink = fetchJob;
+               } else if (currentLink) {
+                   currentLink.nextJob = fetchJob;
+                   currentLink = fetchJob;
+               }
+           });
+
+           if (currentLink) {
+               currentLink.nextJob = job;
+               jobChain = firstJob as Job;
+           }
+      }
+
+      return {
+          ...pawn,
+          currentJob: jobChain,
+          status: 'Starting Assigned Job'
+      };
   };
 
   // --- Game Loop ---
@@ -87,14 +154,40 @@ const App: React.FC = () => {
   }, []);
 
   const tick = () => {
-    const { pawns: currentPawns, structures: currentStructures } = stateRef.current;
+    const { pawns: currentPawns, structures: currentStructures, globalJobQueue: currentQueue } = stateRef.current;
     
+    let nextPawns = [...currentPawns];
+    let nextQueue = [...currentQueue];
+    
+    // 0. Idle Pawns Check Global Queue
+    nextPawns = nextPawns.map(pawn => {
+        if (!pawn.currentJob && pawn.jobQueue.length === 0 && nextQueue.length > 0) {
+            // Try to find a job from global queue this pawn can do
+            for (let i = 0; i < nextQueue.length; i++) {
+                const jobCandidate = nextQueue[i];
+                const updatedPawn = assignJobToPawn(pawn, jobCandidate, currentStructures);
+                
+                if (updatedPawn) {
+                    // Success taking job
+                    nextQueue.splice(i, 1); // Remove from queue
+                    // addLog(`[${pawn.name}] picked up ${jobCandidate.activityId} from shared queue`, 'info');
+                    return updatedPawn;
+                }
+            }
+        }
+        return pawn;
+    });
+
+    // Update Queue State if changed
+    if (nextQueue.length !== currentQueue.length) {
+        setGlobalJobQueue(nextQueue);
+    }
+
     // Process Pawns
-    const nextPawns = currentPawns.map(pawn => {
-        // 1. Check if Idle but has Queue
+    nextPawns = nextPawns.map(pawn => {
+        // 1. Check if Idle but has Queue (Personal Queue)
         if (!pawn.currentJob && pawn.jobQueue.length > 0) {
             const nextJob = pawn.jobQueue[0];
-            // addLog(`[${pawn.name}] starting next queued job: ${nextJob.type}`, 'info');
             return {
                 ...pawn,
                 jobQueue: pawn.jobQueue.slice(1),
@@ -262,7 +355,6 @@ const App: React.FC = () => {
                          workerId: arrivingWorker.id,
                          repeatsLeft: arrivingWorker.currentJob!.activityRepeats || 1
                      };
-                     // addLog(`[${arrivingWorker.name}] started ${arrivingWorker.currentJob!.activityId} on ${STRUCTURES[nextStruct.type].name}`, 'info');
                  }
              }
         }
@@ -369,7 +461,7 @@ const App: React.FC = () => {
                                         const yieldAmount = Math.floor(cropDef.yield * multiplier);
 
                                         if (yieldAmount > 0) {
-                                             worker.inventory.push({
+                                             addItemToInventory(worker.inventory, {
                                                 id: `food-${Date.now()}`,
                                                 name: cropDef.name, // e.g. "Rice"
                                                 quantity: yieldAmount,
@@ -394,24 +486,22 @@ const App: React.FC = () => {
                                         }
 
                                         if (quantityToAdd > 0) {
-                                            const existingItem = worker.inventory.find(i => i.name === out.itemName);
-                                            if (existingItem) {
-                                                existingItem.quantity += quantityToAdd;
-                                            } else {
-                                                worker.inventory.push({
-                                                    id: `item-${Date.now()}-${Math.random()}`,
-                                                    name: out.itemName,
-                                                    quantity: quantityToAdd,
-                                                    weight: 1 
-                                                });
-                                            }
+                                            addItemToInventory(worker.inventory, {
+                                                id: `item-${Date.now()}-${Math.random()}`,
+                                                name: out.itemName,
+                                                quantity: quantityToAdd,
+                                                weight: 1 
+                                            });
                                             logMsg += ` -> ${quantityToAdd}x ${out.itemName}`;
                                         }
                                     });
                                 } else if (actDef.actionType === 'STORE') {
                                     if (worker.inventory.length > 0) {
                                         const itemCount = worker.inventory.reduce((acc, i) => acc + i.quantity, 0);
-                                        nextStruct.inventory.push(...worker.inventory);
+                                        // Move items to chest with stacking
+                                        worker.inventory.forEach(item => {
+                                            addItemToInventory(nextStruct.inventory, item);
+                                        });
                                         worker.inventory = [];
                                         logMsg = `[${worker.name}] stored ${itemCount} items`;
                                     }
@@ -567,7 +657,7 @@ const App: React.FC = () => {
   };
 
   // Helper to find ingredients
-  const findSourceForItems = (itemsNeeded: {itemName: string, quantity: number}[], pawnInventory: Item[]): { itemName: string, quantity: number, sourceId: string }[] | null => {
+  const findSourceForItems = (itemsNeeded: {itemName: string, quantity: number}[], pawnInventory: Item[], allStructures: Structure[]): { itemName: string, quantity: number, sourceId: string }[] | null => {
       const sources: { itemName: string, quantity: number, sourceId: string }[] = [];
       
       for (const need of itemsNeeded) {
@@ -575,7 +665,7 @@ const App: React.FC = () => {
           let missing = need.quantity - inInv;
           
           if (missing > 0) {
-              const source = structures.find(s => 
+              const source = allStructures.find(s => 
                   s.type === 'CHEST' && 
                   s.inventory.some(i => i.name === need.itemName && i.quantity > 0)
               );
@@ -642,10 +732,9 @@ const App: React.FC = () => {
       });
   };
 
-  const handleOrderJob = (pawnId: string, structureId: string, activityId: string, count: number = 1) => {
-      const pawn = pawns.find(p => p.id === pawnId);
+  const handleOrderJob = (pawnId: string | null, structureId: string, activityId: string, count: number = 1) => {
       const startStruct = structures.find(s => s.id === structureId);
-      if (!pawn || !startStruct) return;
+      if (!startStruct) return;
 
       // Detect if this is a batch-compatible activity
       const isBatchable = 
@@ -662,111 +751,52 @@ const App: React.FC = () => {
       if (targets.length > 1) {
           addLog(`Queueing batch order: ${activityId} on ${targets.length} targets`);
       } else {
-          addLog(`Ordered [${pawn.name}]: ${activityId}`);
+          addLog(`Ordered${pawnId ? ' [Pawn]' : ''}: ${activityId}`);
       }
 
-      // Generate Job Chain for EACH target
-      const generatedJobs: Job[] = [];
-
-      targets.forEach(target => {
-          const def = STRUCTURES[target.type];
-          
-          let requiredItems: {itemName: string, quantity: number}[] = [];
-          if (activityId === CONSTRUCT_ACTIVITY_ID) {
-              requiredItems = def.cost.map(c => ({ itemName: c.itemName, quantity: c.amount }));
-          } else {
-              const act = def.activities.find(a => a.id === activityId);
-              if (act && act.inputs) {
-                 requiredItems = act.inputs.map(i => ({ itemName: i.itemName, quantity: i.quantity * count }));
-              }
-          }
-
-          let jobChain: Job | undefined = undefined;
-          const primaryJob: Job = {
-              id: `job-work-${Date.now()}-${target.id}`,
-              type: 'WORK',
-              targetStructureId: target.id,
-              activityId: activityId,
-              activityRepeats: count
-          };
-
-          if (requiredItems.length > 0) {
-              const sources = findSourceForItems(requiredItems, pawn.inventory);
-              if (sources) { 
-                   let firstJob: Job | null = null;
-                   let currentLink: Job | null = null;
-
-                   sources.forEach(source => {
-                       const fetchJob: Job = {
-                           id: `job-fetch-${Date.now()}-${source.itemName}-${Math.random()}`,
-                           type: 'WITHDRAW',
-                           targetStructureId: source.sourceId,
-                           itemsToHandle: [{ itemName: source.itemName, quantity: source.quantity }]
-                       };
-                       
-                       if (!firstJob) {
-                           firstJob = fetchJob;
-                           currentLink = fetchJob;
-                       } else if (currentLink) {
-                           currentLink.nextJob = fetchJob;
-                           currentLink = fetchJob;
-                       }
-                   });
-
-                   if (currentLink) {
-                       currentLink.nextJob = primaryJob;
-                       jobChain = firstJob as Job;
-                   } else {
-                       jobChain = primaryJob;
-                   }
-              } else {
-                  addLog(`Cannot find resources for ${STRUCTURES[target.type].name} at (${target.x},${target.y})`, 'warning');
-                  return;
-              }
-          } else {
-              jobChain = primaryJob;
-          }
-          
-          if (jobChain) generatedJobs.push(jobChain);
-      });
-
-      if (generatedJobs.length === 0) {
-           addLog("Order Cancelled: Not enough resources found!", 'error');
-           return;
-      }
-
-      // Assign first job to current, rest to queue
-      const firstJob = generatedJobs[0];
-      const remainingJobs = generatedJobs.slice(1);
-
-      setPawns(prev => prev.map(p => {
-          if (p.id === pawnId) {
-              return {
-                  ...p,
-                  currentJob: firstJob,
-                  jobQueue: remainingJobs,
-                  status: 'Starting Job Batch'
-              };
-          }
-          return p;
+      // Generate Work Jobs (Goals)
+      const workJobs: Job[] = targets.map(target => ({
+          id: `job-work-${Date.now()}-${target.id}`,
+          type: 'WORK',
+          targetStructureId: target.id,
+          activityId: activityId,
+          activityRepeats: count
       }));
 
-      // Update structure states for immediate feedback (only for the first one usually, others update when job starts)
-      // Actually, we can update the 'workerId' intent immediately for the first one to show feedback
-      setStructures(prev => prev.map(s => {
-          if (s.id === startStruct.id) {
-              return {
-                  ...s,
-                  currentActivity: {
-                      activityId,
-                      progress: 0,
-                      workerId: pawnId,
-                      repeatsLeft: count
+      // Distribution
+      let pawnAssigned = false;
+      const pawn = pawns.find(p => p.id === pawnId);
+      
+      if (pawn && workJobs.length > 0) {
+          // Try to assign first job to selected pawn
+          const successPawn = assignJobToPawn(pawn, workJobs[0], structures);
+          if (successPawn) {
+              setPawns(prev => prev.map(p => p.id === pawn.id ? successPawn : p));
+              pawnAssigned = true;
+              
+              // Visual Feedback for immediate assignment
+              setStructures(prev => prev.map(s => {
+                  if (s.id === targets[0].id) {
+                      return {
+                          ...s,
+                          currentActivity: {
+                              activityId,
+                              progress: 0,
+                              workerId: pawn.id,
+                              repeatsLeft: count
+                          }
+                      };
                   }
-              };
+                  return s;
+              }));
           }
-          return s;
-      }));
+      }
+
+      // Remaining Jobs go to Global Queue
+      const queueJobs = pawnAssigned ? workJobs.slice(1) : workJobs;
+      if (queueJobs.length > 0) {
+          setGlobalJobQueue(prev => [...prev, ...queueJobs]);
+      }
   };
 
   const handleGeneratePawn = async () => {
