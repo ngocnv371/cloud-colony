@@ -381,6 +381,15 @@ const App: React.FC = () => {
             name: newPawnData.name || "Unknown",
             backstory: newPawnData.backstory || "Mystery",
             skills: newPawnData.skills as any, 
+            skillXp: newPawnData.skillXp || {
+                [SkillType.CONSTRUCTION]: 0,
+                [SkillType.COOKING]: 0,
+                [SkillType.PLANTS]: 0,
+                [SkillType.MINING]: 0,
+                [SkillType.SOCIAL]: 0,
+                [SkillType.INTELLECTUAL]: 0,
+                [SkillType.MELEE]: 0
+            },
             color: `bg-${['red','green','blue','purple','yellow'][Math.floor(Math.random()*5)]}-500`,
             x: Math.floor(Math.random() * MAP_SIZE),
             y: Math.floor(Math.random() * MAP_SIZE),

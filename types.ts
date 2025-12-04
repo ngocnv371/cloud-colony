@@ -30,6 +30,7 @@ export interface Pawn {
   y: number;
   color: string;
   skills: Record<SkillType, number>;
+  skillXp: Record<SkillType, number>; // Current XP for current level
   inventory: Item[];
   maxWeight: number;
   currentJob: Job | null;

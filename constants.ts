@@ -1,9 +1,15 @@
 
 
-import { StructureDefinition, SkillType } from './types';
+import { StructureDefinition, SkillType, Pawn } from './types';
 
 export const CONSTRUCT_ACTIVITY_ID = 'construct_structure';
 export const HARVEST_ACTIVITY_ID = 'harvest_crop';
+
+export const getLevelRequirement = (level: number) => {
+    // 100 XP base, increases with level. 
+    // At 4 ticks/sec (1 tick = 1 XP), level 0->1 takes 25 seconds.
+    return 100 * (level + 1);
+};
 
 export const CROPS = {
     RICE: { name: 'Rice', growRate: 2.5, yield: 6 }, // Fast, low yield
@@ -414,7 +420,17 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
   }
 };
 
-export const INITIAL_PAWNS = [
+const initialSkills = {
+  [SkillType.CONSTRUCTION]: 0,
+  [SkillType.COOKING]: 0,
+  [SkillType.PLANTS]: 0,
+  [SkillType.MINING]: 0,
+  [SkillType.SOCIAL]: 0,
+  [SkillType.INTELLECTUAL]: 0,
+  [SkillType.MELEE]: 0
+};
+
+export const INITIAL_PAWNS: Partial<Pawn>[] = [
   {
     name: 'Crash',
     color: 'bg-blue-400',
@@ -426,7 +442,8 @@ export const INITIAL_PAWNS = [
       [SkillType.SOCIAL]: 3,
       [SkillType.INTELLECTUAL]: 0,
       [SkillType.MELEE]: 4
-    }
+    },
+    skillXp: { ...initialSkills }
   },
   {
     name: 'Serenity',
@@ -439,6 +456,7 @@ export const INITIAL_PAWNS = [
       [SkillType.SOCIAL]: 5,
       [SkillType.INTELLECTUAL]: 2,
       [SkillType.MELEE]: 1
-    }
+    },
+    skillXp: { ...initialSkills }
   }
 ];

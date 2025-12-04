@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Pawn, Structure, StructureDefinition, SkillType, ActivityDefinition } from '../types';
-import { STRUCTURES, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID } from '../constants';
+import { STRUCTURES, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID, getLevelRequirement } from '../constants';
 import { X, CheckCircle, Activity, Briefcase, Construction, Package, Sprout, Axe, Pickaxe, Scissors, BrickWall, Flame, Utensils, Brain, Hammer, Gamepad2, Swords, Box, Square } from 'lucide-react';
 
 interface SidebarProps {
@@ -185,21 +185,37 @@ const Sidebar: React.FC<SidebarProps> = ({
              </div>
              
              <h3 className="text-xs font-semibold text-gray-400 uppercase mb-2">Skills</h3>
-             <div className="space-y-1">
-                {Object.entries(selectedPawn.skills).map(([skill, level]) => (
-                    <div key={skill} className="flex items-center justify-between text-sm">
-                        <span className="capitalize">{skill.toLowerCase()}</span>
-                        <div className="flex items-center gap-2">
-                            <div className="w-24 h-1.5 bg-gray-600 rounded-full overflow-hidden">
+             <div className="space-y-2">
+                {Object.entries(selectedPawn.skills).map(([skill, level]) => {
+                    const typedSkill = skill as SkillType;
+                    const xp = selectedPawn.skillXp?.[typedSkill] || 0;
+                    const required = getLevelRequirement(level as number);
+                    const percent = (xp / required) * 100;
+                    
+                    return (
+                        <div key={skill} className="text-sm">
+                            <div className="flex items-center justify-between mb-0.5">
+                                <span className="capitalize text-xs text-gray-300">{skill.toLowerCase()}</span>
+                                <span className="font-mono text-xs font-bold">{level as number}</span>
+                            </div>
+                            <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden border border-gray-600 relative">
+                                {/* Level Bar (Base) - Just solid background here, we use color for value */}
                                 <div 
-                                    className="h-full bg-green-500" 
+                                    className="absolute inset-y-0 left-0 bg-gray-600 opacity-30" 
                                     style={{ width: `${(Number(level) / 20) * 100}%` }}
                                 ></div>
+                                {/* XP Bar (Progress) */}
+                                <div 
+                                    className="absolute inset-y-0 left-0 bg-yellow-400/80 transition-all duration-300"
+                                    style={{ width: `${percent}%` }}
+                                ></div>
                             </div>
-                            <span className="w-4 text-right font-mono text-gray-300">{level as number}</span>
+                            <div className="flex justify-end">
+                                <span className="text-[9px] text-gray-500 font-mono">{Math.floor(xp)} / {required} XP</span>
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
              </div>
 
              <div className="mt-4 pt-4 border-t border-gray-600">

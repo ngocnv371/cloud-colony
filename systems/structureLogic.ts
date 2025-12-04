@@ -1,7 +1,7 @@
 
 
 import { Pawn, Structure, LogEntry, SkillType } from '../types';
-import { STRUCTURES, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID, CROPS } from '../constants';
+import { STRUCTURES, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID, CROPS, getLevelRequirement } from '../constants';
 import { addItemToInventory } from '../utils/inventoryUtils';
 
 type LogEvent = Omit<LogEntry, 'id' | 'timestamp'>;
@@ -293,9 +293,40 @@ const updateActivityProgress = (structure: Structure, pawns: Pawn[], logs: LogEv
     const actId = structure.currentActivity.activityId;
     let newProgress = structure.currentActivity.progress;
     
+    // Determine active skill
+    let activeSkill = SkillType.CONSTRUCTION;
+    let actDef;
+    if (actId === CONSTRUCT_ACTIVITY_ID) {
+        activeSkill = SkillType.CONSTRUCTION;
+    } else {
+        const def = STRUCTURES[structure.type];
+        actDef = def.activities.find(a => a.id === actId);
+        if (actDef) activeSkill = actDef.requiredSkill;
+    }
+    
+    // Award XP
+    const updatedWorker = { ...worker, skillXp: { ...worker.skillXp }, skills: { ...worker.skills } };
+    const xpGain = 1; // 1 XP per tick
+    
+    // Safe initialization just in case old pawn data exists
+    if (updatedWorker.skillXp[activeSkill] === undefined) updatedWorker.skillXp[activeSkill] = 0;
+    
+    updatedWorker.skillXp[activeSkill] += xpGain;
+    
+    const req = getLevelRequirement(updatedWorker.skills[activeSkill]);
+    if (updatedWorker.skillXp[activeSkill] >= req) {
+        updatedWorker.skills[activeSkill]++;
+        updatedWorker.skillXp[activeSkill] -= req; // Carry over overflow
+        logs.push({ 
+            message: `[${worker.name}] leveled up ${activeSkill} to ${updatedWorker.skills[activeSkill]}!`, 
+            type: 'success' 
+        });
+    }
+    pawns[workerIdx] = updatedWorker;
+
     if (actId === CONSTRUCT_ACTIVITY_ID) {
         const speed = 20;
-        const skillFactor = 1 + (worker.skills[SkillType.CONSTRUCTION] * 0.1);
+        const skillFactor = 1 + (updatedWorker.skills[SkillType.CONSTRUCTION] * 0.1);
         const progressGain = (100 / speed) * skillFactor;
         newProgress = Math.min(100, newProgress + progressGain);
         
@@ -303,10 +334,8 @@ const updateActivityProgress = (structure: Structure, pawns: Pawn[], logs: LogEv
             return completeConstruction(structure, pawns, workerIdx, logs);
         }
     } else {
-        const def = STRUCTURES[structure.type];
-        const actDef = def.activities.find(a => a.id === actId);
         if (actDef) {
-            const skillFactor = 1 + (worker.skills[actDef.requiredSkill] * 0.1); 
+            const skillFactor = 1 + (updatedWorker.skills[actDef.requiredSkill] * 0.1); 
             const progressGain = (100 / actDef.durationTicks) * skillFactor;
             newProgress = Math.min(100, newProgress + progressGain);
 
