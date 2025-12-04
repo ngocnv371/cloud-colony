@@ -142,11 +142,11 @@ const GameMap: React.FC<GameMapProps> = ({
                         </div>
                     )}
 
-                    {/* Progress Bar for Active Job */}
+                    {/* Progress Bar for Active Job - Centered */}
                     {struct.currentActivity && (
-                        <div className="absolute -top-3 left-0 w-full h-2 bg-gray-700 rounded-full overflow-hidden border border-black z-20">
+                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3/4 h-1.5 bg-gray-900/80 rounded-full overflow-hidden border border-white/30 z-20 pointer-events-none">
                             <div 
-                                className="h-full bg-yellow-400" 
+                                className="h-full bg-yellow-400 shadow-[0_0_6px_rgba(250,204,21,0.8)] transition-all duration-200" 
                                 style={{ width: `${struct.currentActivity.progress}%` }} 
                             />
                         </div>
@@ -162,7 +162,7 @@ const GameMap: React.FC<GameMapProps> = ({
                 <div
                     key={pawn.id}
                     className={`absolute rounded-full flex items-center justify-center shadow-lg transition-all duration-300 ease-linear
-                        ${pawn.color} ${isSelected ? 'ring-4 ring-yellow-400 z-20 scale-110' : 'z-10'}
+                        ${pawn.color} ${isSelected ? 'ring-4 ring-yellow-400 z-30 scale-110' : 'z-20'}
                     `}
                     style={{
                         left: pawn.x * TILE_SIZE,

@@ -232,15 +232,18 @@ const App: React.FC = () => {
                  return nextPawn;
              }
 
-             const dist = Math.abs(pawn.x - targetStructure.x) + Math.abs(pawn.y - targetStructure.y);
-             if (dist > 1) { // Must be adjacent or on top
-                const dx = targetStructure.x - pawn.x;
-                const dy = targetStructure.y - pawn.y;
+             // Check distance (Chebyshev for adjacency including diagonals)
+             const dx = targetStructure.x - pawn.x;
+             const dy = targetStructure.y - pawn.y;
+             const dist = Math.max(Math.abs(dx), Math.abs(dy));
+
+             if (dist > 1) { 
                 nextPawn.status = 'Fetching Items';
+                // Move logic
                 if (dx !== 0) nextPawn.x += Math.sign(dx);
                 else if (dy !== 0) nextPawn.y += Math.sign(dy);
              } else {
-                 // At location, take items instantly
+                 // At location (adjacent or on top), take items
                  if (job.itemsToHandle) {
                      nextPawn.status = 'Withdrawing';
                  }
@@ -255,13 +258,13 @@ const App: React.FC = () => {
                 return nextPawn;
             }
 
-            // Are we adjacent or on top?
-            const dist = Math.abs(pawn.x - targetStructure.x) + Math.abs(pawn.y - targetStructure.y);
+            // Check distance (Chebyshev for adjacency including diagonals)
+            const dx = targetStructure.x - pawn.x;
+            const dy = targetStructure.y - pawn.y;
+            const dist = Math.max(Math.abs(dx), Math.abs(dy));
             
-            if (dist > 2) { // Allow range of 1 for diagonals slightly or adjacent
+            if (dist > 1) { 
                 // Move towards it
-                const dx = targetStructure.x - pawn.x;
-                const dy = targetStructure.y - pawn.y;
                 nextPawn.status = 'Moving to Work';
                 if (dx !== 0) nextPawn.x += Math.sign(dx);
                 else if (dy !== 0) nextPawn.y += Math.sign(dy);
@@ -346,8 +349,12 @@ const App: React.FC = () => {
              );
 
              if (arrivingWorker) {
-                 const dist = Math.abs(arrivingWorker.x - nextStruct.x) + Math.abs(arrivingWorker.y - nextStruct.y);
-                 if (dist <= 2) { 
+                 // Check adjacency (Chebyshev distance <= 1)
+                 const dx = arrivingWorker.x - nextStruct.x;
+                 const dy = arrivingWorker.y - nextStruct.y;
+                 const dist = Math.max(Math.abs(dx), Math.abs(dy));
+
+                 if (dist <= 1) { 
                      // Start the job on the structure
                      nextStruct.currentActivity = {
                          activityId: arrivingWorker.currentJob!.activityId!,
