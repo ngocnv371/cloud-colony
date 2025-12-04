@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import GameMap from './components/GameMap';
 import Sidebar from './components/Sidebar';
 import LogPanel from './components/LogPanel';
+import ResourceHUD from './components/ResourceHUD';
 import { Pawn, Structure, StructureDefinition, Job, MAP_SIZE, TICK_RATE_MS, LogEntry } from './types';
 import { STRUCTURES, INITIAL_PAWNS, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID } from './constants';
 import { generateRandomPawn } from './services/geminiService';
@@ -317,6 +318,9 @@ const App: React.FC = () => {
             hoverPos={hoverPos}
             setHoverPos={setHoverPos}
         />
+        
+        <ResourceHUD structures={structures} pawns={pawns} />
+        
         <Sidebar 
             selectedPawn={selectedPawn}
             selectedStructure={selectedStructure}
