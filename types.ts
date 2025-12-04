@@ -28,6 +28,15 @@ export interface Needs {
   recreation: number;// 0-100
 }
 
+export type EffectType = 'WELL_RESTED' | 'SATED' | 'HUNGRY' | 'TIRED' | 'BORED' | 'JOY';
+
+export interface PawnEffect {
+  type: EffectType;
+  label: string;
+  duration: number; // Ticks remaining. -1 for infinite (until condition met)
+  isPositive: boolean;
+}
+
 export interface Pawn {
   id: string;
   name: string;
@@ -42,7 +51,12 @@ export interface Pawn {
   maxWeight: number;
   currentJob: Job | null;
   jobQueue: Job[]; // Queue of future jobs
-  status: string; // "Idle", "Moving", "Working", "Sleeping", "Eating"
+  status: string; // "Idle", "Moving", "Working", "Sleeping", "Eating", "Dead"
+  
+  // New Fields
+  effects: PawnEffect[];
+  starvationTimer: number; // Ticks spent starving
+  movementBuffer: number; // Accumulator for sub-tile movement
 }
 
 export type ActivityType = 'CRAFT' | 'GATHER' | 'STORE' | 'WORK' | 'RECREATION';

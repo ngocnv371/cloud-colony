@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import { Structure, Pawn, MAP_SIZE, StructureDefinition } from '../types';
 import { STRUCTURES } from '../constants';
-import { UserRound, Hammer, Utensils, Zap, Box, Brain, TreeDeciduous, Grape, Sprout, Wheat, Carrot, Mountain, Axe, Pickaxe, Scissors, Gamepad2, Swords, Moon, Footprints } from 'lucide-react';
+import { UserRound, Hammer, Utensils, Zap, Box, Brain, TreeDeciduous, Grape, Sprout, Wheat, Carrot, Mountain, Axe, Pickaxe, Scissors, Gamepad2, Swords, Moon, Footprints, Skull } from 'lucide-react';
 
 interface GameMapProps {
   structures: Structure[];
@@ -46,8 +46,10 @@ const GameMap: React.FC<GameMapProps> = ({
 
   const cursorClass = commandMode ? 'cursor-crosshair' : (buildPreview ? 'cursor-cell' : 'cursor-auto');
 
-  const getPawnIcon = (jobType?: string) => {
-    switch(jobType) {
+  const getPawnIcon = (pawn: Pawn) => {
+    if (pawn.status === 'Dead') return <Skull size={20} className="text-gray-400" />;
+    
+    switch(pawn.currentJob?.type) {
         case 'WORK': return <Hammer size={16} className="text-yellow-300 animate-pulse" />;
         case 'WITHDRAW': return <Box size={16} className="text-blue-300" />;
         case 'SLEEP': return <Moon size={16} className="text-purple-300" />;
@@ -201,11 +203,13 @@ const GameMap: React.FC<GameMapProps> = ({
         {/* Pawns */}
         {pawns.map(pawn => {
             const isSelected = selectedPawnId === pawn.id;
+            const isDead = pawn.status === 'Dead';
             return (
                 <div
                     key={pawn.id}
                     className={`absolute rounded-full flex items-center justify-center shadow-lg transition-all duration-300 ease-linear pointer-events-none
-                        ${pawn.color} ${isSelected ? 'ring-4 ring-yellow-400 z-30 scale-110' : 'z-20'}
+                        ${isDead ? 'bg-gray-700 grayscale' : pawn.color} 
+                        ${isSelected ? 'ring-4 ring-yellow-400 z-30 scale-110' : 'z-20'}
                     `}
                     style={{
                         left: pawn.x * TILE_SIZE,
@@ -216,7 +220,7 @@ const GameMap: React.FC<GameMapProps> = ({
                     }}
                 >
                     <div className="flex flex-col items-center">
-                        {getPawnIcon(pawn.currentJob?.type)}
+                        {getPawnIcon(pawn)}
                         <span className="text-[10px] font-bold text-white drop-shadow-md truncate max-w-[40px]">
                             {pawn.name}
                         </span>
@@ -260,4 +264,3 @@ const GameMap: React.FC<GameMapProps> = ({
 };
 
 export default GameMap;
-    

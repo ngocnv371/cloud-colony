@@ -23,7 +23,7 @@ const updateGrowth = (structure: Structure): Structure => {
         }
     }
     
-    // 2. Natural Growth (Trees/Bushes)
+    // 2. Natural Growth (Trees, Bushes)
     if ((structure.type === 'TREE' || structure.type === 'BERRY_BUSH') && structure.growth !== undefined && structure.growth < 100) {
         return {
             ...structure,
@@ -36,6 +36,8 @@ const updateGrowth = (structure: Structure): Structure => {
 
 const handleWithdrawInteractions = (structure: Structure, pawns: Pawn[], logs: LogEvent[]) => {
     pawns.forEach((pawn, pIdx) => {
+        if (pawn.status === 'Dead') return;
+        
         if (pawn.currentJob?.type === 'WITHDRAW' && pawn.status === 'Withdrawing' && pawn.currentJob.targetStructureId === structure.id) {
             // Clone pawn for modification
             const updatedPawn = { ...pawn, inventory: pawn.inventory.map(i => ({...i})) };
@@ -89,6 +91,7 @@ const handleWithdrawInteractions = (structure: Structure, pawns: Pawn[], logs: L
 const initializeWorkerActivity = (structure: Structure, pawns: Pawn[]) => {
     if (!structure.currentActivity) {
          const arrivingWorker = pawns.find(p => 
+            p.status !== 'Dead' &&
             p.currentJob?.type === 'WORK' && 
             p.currentJob.targetStructureId === structure.id &&
             (p.status === 'Working' || p.status === 'Moving to Work')
@@ -292,6 +295,20 @@ const completeActivity = (structure: Structure, pawns: Pawn[], workerIdx: number
     return nextStruct;
 };
 
+// Stat multiplier logic (duplicated from pawnLogic for modularity)
+const getWorkSpeedMultiplier = (pawn: Pawn): number => {
+    let multiplier = 1.0;
+    if (pawn.effects) {
+        pawn.effects.forEach(e => {
+            if (e.type === 'SATED') multiplier += 0.1;
+            if (e.type === 'HUNGRY') multiplier -= 0.1;
+            if (e.type === 'TIRED') multiplier -= 0.1;
+            if (e.type === 'BORED') multiplier -= 0.1;
+        });
+    }
+    return Math.max(0.1, multiplier);
+};
+
 const updateActivityProgress = (structure: Structure, pawns: Pawn[], logs: LogEvent[]): Structure | null => {
     if (!structure.currentActivity) return structure;
 
@@ -344,10 +361,13 @@ const updateActivityProgress = (structure: Structure, pawns: Pawn[], logs: LogEv
     }
     pawns[workerIdx] = updatedWorker;
 
+    // Apply Work Speed Multiplier
+    const workSpeedMult = getWorkSpeedMultiplier(updatedWorker);
+
     if (actId === CONSTRUCT_ACTIVITY_ID) {
         const speed = 20;
         const skillFactor = 1 + (updatedWorker.skills[SkillType.CONSTRUCTION] * 0.1);
-        const progressGain = (100 / speed) * skillFactor;
+        const progressGain = (100 / speed) * skillFactor * workSpeedMult;
         newProgress = Math.min(100, newProgress + progressGain);
         
         if (newProgress >= 100) {
@@ -356,7 +376,7 @@ const updateActivityProgress = (structure: Structure, pawns: Pawn[], logs: LogEv
     } else {
         if (actDef) {
             const skillFactor = 1 + (updatedWorker.skills[actDef.requiredSkill] * 0.1); 
-            const progressGain = (100 / actDef.durationTicks) * skillFactor;
+            const progressGain = (100 / actDef.durationTicks) * skillFactor * workSpeedMult;
             newProgress = Math.min(100, newProgress + progressGain);
 
             if (newProgress >= 100) {

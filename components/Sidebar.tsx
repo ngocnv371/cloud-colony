@@ -2,8 +2,9 @@
 
 import React, { useState } from 'react';
 import { Pawn, Structure, StructureDefinition, SkillType, ActivityDefinition } from '../types';
-import { STRUCTURES, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID, getLevelRequirement } from '../constants';
-import { X, CheckCircle, Activity, Briefcase, Construction, Package, Sprout, Axe, Pickaxe, Scissors, BrickWall, Flame, Utensils, Brain, Hammer, Gamepad2, Swords, Box, Square, Moon, Heart } from 'lucide-react';
+import { STRUCTURES, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID, getLevelRequirement, EFFECT_DURATION_TICKS } from '../constants';
+import { X, CheckCircle, Activity, Briefcase, Construction, Package, Sprout, Axe, Pickaxe, Scissors, BrickWall, Flame, Utensils, Brain, Hammer, Gamepad2, Swords, Box, Square, Moon, Heart, Skull, Hourglass } from 'lucide-react';
+import PawnDetails from './PawnDetails';
 
 interface SidebarProps {
   selectedPawn: Pawn | undefined;
@@ -160,130 +161,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Selected Pawn Panel */}
         {selectedPawn ? (
-           <section className="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
-             <div className="flex justify-between items-start mb-4">
-                <div>
-                    <h2 className="text-lg font-bold text-white">{selectedPawn.name}</h2>
-                    <p className="text-xs text-gray-400 italic">{selectedPawn.backstory}</p>
-                </div>
-                <div className={`w-8 h-8 rounded-full ${selectedPawn.color} shadow-sm border-2 border-gray-500`}></div>
-             </div>
-
-             <div className="space-y-2 mb-4">
-                <div className="flex justify-between text-sm">
-                    <span className="text-gray-400">State:</span>
-                    <span className="text-yellow-400 font-mono">{selectedPawn.status}</span>
-                </div>
-                {selectedPawn.currentJob && (
-                    <div className="bg-black/30 p-2 rounded text-xs text-gray-300 space-y-1">
-                        <div>Doing: {selectedPawn.currentJob.type}</div>
-                        {selectedPawn.currentJob.type === 'WITHDRAW' && (
-                             <div className="text-blue-300">Fetching Ingredients...</div>
-                        )}
-                    </div>
-                )}
-             </div>
-
-             {/* NEEDS BARS */}
-             <div className="mb-4 space-y-2 border-b border-gray-600 pb-4">
-                <h3 className="text-xs font-semibold text-gray-400 uppercase">Needs</h3>
-                {selectedPawn.needs && (
-                    <>
-                        {/* Food */}
-                        <div className="w-full">
-                            <div className="flex justify-between text-[10px] mb-1">
-                                <span className="text-gray-300 flex items-center gap-1"><Utensils size={10} /> Food</span>
-                                <span className="font-mono">{Math.floor(selectedPawn.needs.food)}%</span>
-                            </div>
-                            <div className="h-1.5 w-full bg-gray-800 rounded-full overflow-hidden">
-                                <div 
-                                    className={`h-full ${selectedPawn.needs.food < 15 ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`} 
-                                    style={{ width: `${selectedPawn.needs.food}%` }}
-                                ></div>
-                            </div>
-                        </div>
-
-                        {/* Sleep */}
-                        <div className="w-full">
-                            <div className="flex justify-between text-[10px] mb-1">
-                                <span className="text-gray-300 flex items-center gap-1"><Moon size={10} /> Rest</span>
-                                <span className="font-mono">{Math.floor(selectedPawn.needs.sleep)}%</span>
-                            </div>
-                            <div className="h-1.5 w-full bg-gray-800 rounded-full overflow-hidden">
-                                <div 
-                                    className={`h-full ${selectedPawn.needs.sleep < 10 ? 'bg-red-500 animate-pulse' : 'bg-blue-400'}`} 
-                                    style={{ width: `${selectedPawn.needs.sleep}%` }}
-                                ></div>
-                            </div>
-                        </div>
-
-                        {/* Recreation */}
-                        <div className="w-full">
-                            <div className="flex justify-between text-[10px] mb-1">
-                                <span className="text-gray-300 flex items-center gap-1"><Heart size={10} /> Recreation</span>
-                                <span className="font-mono">{Math.floor(selectedPawn.needs.recreation)}%</span>
-                            </div>
-                            <div className="h-1.5 w-full bg-gray-800 rounded-full overflow-hidden">
-                                <div 
-                                    className={`h-full ${selectedPawn.needs.recreation < 20 ? 'bg-red-500 animate-pulse' : 'bg-pink-400'}`} 
-                                    style={{ width: `${selectedPawn.needs.recreation}%` }}
-                                ></div>
-                            </div>
-                        </div>
-                    </>
-                )}
-             </div>
-             
-             <h3 className="text-xs font-semibold text-gray-400 uppercase mb-2">Skills</h3>
-             <div className="space-y-2">
-                {Object.entries(selectedPawn.skills).map(([skill, level]) => {
-                    const typedSkill = skill as SkillType;
-                    const xp = selectedPawn.skillXp?.[typedSkill] || 0;
-                    const required = getLevelRequirement(level as number);
-                    const percent = (xp / required) * 100;
-                    
-                    return (
-                        <div key={skill} className="text-sm">
-                            <div className="flex items-center justify-between mb-0.5">
-                                <span className="capitalize text-xs text-gray-300">{skill.toLowerCase()}</span>
-                                <span className="font-mono text-xs font-bold">{level as number}</span>
-                            </div>
-                            <div className="w-full h-2 bg-gray-800 rounded-full overflow-hidden border border-gray-600 relative">
-                                {/* Level Bar (Base) - Just solid background here, we use color for value */}
-                                <div 
-                                    className="absolute inset-y-0 left-0 bg-gray-600 opacity-30" 
-                                    style={{ width: `${(Number(level) / 20) * 100}%` }}
-                                ></div>
-                                {/* XP Bar (Progress) */}
-                                <div 
-                                    className="absolute inset-y-0 left-0 bg-yellow-400/80 transition-all duration-300"
-                                    style={{ width: `${percent}%` }}
-                                ></div>
-                            </div>
-                            <div className="flex justify-end">
-                                <span className="text-[9px] text-gray-500 font-mono">{Math.floor(xp)} / {required} XP</span>
-                            </div>
-                        </div>
-                    );
-                })}
-             </div>
-
-             <div className="mt-4 pt-4 border-t border-gray-600">
-                <h3 className="text-xs font-semibold text-gray-400 uppercase mb-2">Inventory</h3>
-                {selectedPawn.inventory.length === 0 ? (
-                    <p className="text-sm text-gray-500">Empty</p>
-                ) : (
-                    <ul className="text-sm space-y-1">
-                        {selectedPawn.inventory.map((item, idx) => (
-                            <li key={idx} className="flex justify-between">
-                                <span>{item.name}</span>
-                                <span className="text-gray-400">x{item.quantity}</span>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-             </div>
-           </section>
+           <PawnDetails pawn={selectedPawn} />
         ) : (
             <section className="bg-gray-700/30 rounded-lg p-4 text-center border border-dashed border-gray-600">
                 <p className="text-gray-400 text-sm">Select a pawn to view details</p>
@@ -427,6 +305,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                                     const skillLevel = selectedPawn.skills[act.requiredSkill];
                                     if (skillLevel < act.requiredLevel) {
                                         reason = `Need ${act.requiredSkill} ${act.requiredLevel}`;
+                                    } else if (selectedPawn.status === 'Dead') {
+                                        reason = "Pawn is dead";
                                     } else if (selectedPawn.status !== 'Idle' && selectedPawn.status !== 'Moving' && selectedPawn.status !== 'Working') {
                                         reason = "Pawn is busy";
                                         canDo = true; // Still allow override
@@ -438,7 +318,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 return (
                                     <button
                                         key={act.id}
-                                        disabled={!canDo && !!selectedPawn} 
+                                        disabled={!canDo && !!selectedPawn && selectedPawn.status !== 'Dead'} 
                                         onClick={() => onOrderJob(selectedPawn?.id || null, selectedStructure.id, act.id, repeatCount)}
                                         className={`w-full p-2 rounded text-left flex justify-between items-center group transition-colors relative mb-1
                                             ${(!canDo && !!selectedPawn)

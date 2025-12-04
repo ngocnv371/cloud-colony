@@ -29,13 +29,20 @@ export const NEEDS = {
 };
 
 export const FOOD_ITEMS: Record<string, number> = {
-    'Berries': 20,
     'Simple Meal': 100,
     'Fine Meal': 100,
-    'Corn': 15,
-    'Potato': 10,
-    'Rice': 5
+    'Berries': 50,
+    'Corn': 50,
+    'Potato': 45,
+    'Rice': 40
 };
+
+// 60 seconds * 4 ticks/sec = 240 ticks
+export const EFFECT_DURATION_TICKS = 240;
+// 120 seconds * 4 ticks/sec = 480 ticks
+export const STARVATION_DEATH_TICKS = 480;
+// 3000 seconds * 4 ticks/sec = 12000 ticks
+export const JOY_DURATION_TICKS = 12000;
 
 export const getLevelRequirement = (level: number) => {
     // 100 XP base, increases with level. 

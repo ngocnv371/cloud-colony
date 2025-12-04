@@ -1,11 +1,12 @@
 
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import GameMap from './components/GameMap';
 import Sidebar from './components/Sidebar';
 import LogPanel from './components/LogPanel';
 import ResourceHUD from './components/ResourceHUD';
 import { Pawn, Structure, StructureDefinition, Job, MAP_SIZE, TICK_RATE_MS, LogEntry, SkillType } from './types';
-import { STRUCTURES, INITIAL_PAWNS, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID, NATURAL_SPAWN_CHANCE } from './constants';
+import { STRUCTURES, INITIAL_PAWNS, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID, NATURAL_SPAWN_CHANCE, JOY_DURATION_TICKS } from './constants';
 import { generateRandomPawn } from './services/geminiService';
 
 // Logic Modules
@@ -26,7 +27,17 @@ const App: React.FC = () => {
       currentJob: null,
       jobQueue: [],
       status: 'Idle',
-      needs: { food: 100, sleep: 100, recreation: 100 }
+      needs: { food: 100, sleep: 100, recreation: 100 },
+      effects: [
+          {
+              type: 'JOY',
+              label: 'Joy',
+              duration: JOY_DURATION_TICKS,
+              isPositive: true
+          }
+      ],
+      starvationTimer: 0,
+      movementBuffer: 0
     })) as Pawn[]
   );
 
@@ -287,6 +298,7 @@ const App: React.FC = () => {
     if (selectedPawnId && !clickedStructure && !clickedPawn) {
         setPawns(prev => prev.map(p => {
             if (p.id === selectedPawnId) {
+                if (p.status === 'Dead') return p;
                 addLog(`[${p.name}] Moving to (${x},${y})`);
                 return {
                     ...p,
@@ -375,7 +387,7 @@ const App: React.FC = () => {
       let pawnAssigned = false;
       const pawn = pawns.find(p => p.id === pawnId);
       
-      if (pawn && workJobs.length > 0) {
+      if (pawn && pawn.status !== 'Dead' && workJobs.length > 0) {
           // Try to assign first job to selected pawn
           const successPawn = assignJobToPawn(pawn, workJobs[0], structures);
           if (successPawn) {
@@ -433,7 +445,10 @@ const App: React.FC = () => {
             currentJob: null,
             jobQueue: [],
             status: 'Idle',
-            needs: { food: 100, sleep: 100, recreation: 100 }
+            needs: { food: 100, sleep: 100, recreation: 100 },
+            effects: newPawnData.effects || [],
+            starvationTimer: 0,
+            movementBuffer: 0
         };
         setPawns(prev => [...prev, newPawn]);
         addLog(`Recruited ${newPawn.name}: ${newPawn.backstory}`, 'success');

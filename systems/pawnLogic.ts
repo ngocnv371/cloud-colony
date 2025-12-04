@@ -1,5 +1,7 @@
-import { Pawn, Job, Structure, LogEntry, Item } from '../types';
-import { STRUCTURES, CONSTRUCT_ACTIVITY_ID, NEEDS, FOOD_ITEMS } from '../constants';
+
+
+import { Pawn, Job, Structure, LogEntry, PawnEffect, EffectType } from '../types';
+import { STRUCTURES, CONSTRUCT_ACTIVITY_ID, NEEDS, FOOD_ITEMS, EFFECT_DURATION_TICKS, STARVATION_DEATH_TICKS } from '../constants';
 import { findSourceForItems } from '../utils/inventoryUtils';
 
 type LogEvent = Omit<LogEntry, 'id' | 'timestamp'>;
@@ -135,6 +137,20 @@ const findRecreationJob = (pawn: Pawn, structures: Structure[]): Job | null => {
     return null;
 };
 
+// --- Effects & Stats ---
+
+const getMoveSpeedMultiplier = (pawn: Pawn): number => {
+    let multiplier = 1.0;
+    pawn.effects.forEach(e => {
+        if (e.type === 'WELL_RESTED') multiplier += 0.1;
+        if (e.type === 'JOY') multiplier += 0.1;
+        if (e.type === 'HUNGRY') multiplier -= 0.1;
+        if (e.type === 'TIRED') multiplier -= 0.1;
+        if (e.type === 'BORED') multiplier -= 0.1;
+    });
+    return Math.max(0.1, multiplier); // Min speed 10%
+};
+
 
 export const processPawns = (
     currentPawns: Pawn[], 
@@ -146,48 +162,96 @@ export const processPawns = (
     let nextQueue = [...currentQueue];
 
     let nextPawns = currentPawns.map(pawn => {
-        let updatedPawn = { ...pawn, needs: { ...pawn.needs } };
+        if (pawn.status === 'Dead') return pawn;
 
-        // --- Needs Decay ---
+        let updatedPawn = { 
+            ...pawn, 
+            needs: { ...pawn.needs },
+            effects: [...(pawn.effects || [])] // Shallow copy effects
+        };
+
+        // --- 1. Effect Processing ---
+        // Decay Duration
+        updatedPawn.effects = updatedPawn.effects.map(e => {
+            if (e.duration !== -1) return { ...e, duration: e.duration - 1 };
+            return e;
+        }).filter(e => e.duration === -1 || e.duration > 0);
+
+        // Conditional Effects Logic
+        const hasEffect = (t: EffectType) => updatedPawn.effects.some(e => e.type === t);
+        const addEffect = (e: PawnEffect) => {
+            if (!hasEffect(e.type)) updatedPawn.effects.push(e);
+        };
+        const removeEffect = (t: EffectType) => {
+            updatedPawn.effects = updatedPawn.effects.filter(e => e.type !== t);
+        };
+
+        // Hungry
+        if (updatedPawn.needs.food < NEEDS.CRITICAL.FOOD) {
+            addEffect({ type: 'HUNGRY', label: 'Hungry', duration: -1, isPositive: false });
+        } else {
+            removeEffect('HUNGRY');
+        }
+
+        // Tired
+        if (updatedPawn.needs.sleep < NEEDS.CRITICAL.SLEEP) {
+            addEffect({ type: 'TIRED', label: 'Tired', duration: -1, isPositive: false });
+        } else {
+            removeEffect('TIRED');
+        }
+
+        // Bored
+        if (updatedPawn.needs.recreation < NEEDS.CRITICAL.RECREATION) {
+            addEffect({ type: 'BORED', label: 'Bored', duration: -1, isPositive: false });
+        } else {
+            removeEffect('BORED');
+        }
+
+        // --- 2. Starvation Death Logic ---
+        if (hasEffect('HUNGRY')) {
+            updatedPawn.starvationTimer = (updatedPawn.starvationTimer || 0) + 1;
+            if (updatedPawn.starvationTimer > STARVATION_DEATH_TICKS) {
+                logs.push({ message: `[${pawn.name}] has died of starvation.`, type: 'error' });
+                updatedPawn.status = 'Dead';
+                updatedPawn.currentJob = null;
+                updatedPawn.jobQueue = [];
+                updatedPawn.effects = [];
+                return updatedPawn; // Stop processing
+            }
+        } else {
+            updatedPawn.starvationTimer = 0;
+        }
+
+
+        // --- 3. Needs Decay ---
         updatedPawn.needs.food = Math.max(0, updatedPawn.needs.food - NEEDS.DECAY.FOOD);
         updatedPawn.needs.sleep = Math.max(0, updatedPawn.needs.sleep - NEEDS.DECAY.SLEEP);
         updatedPawn.needs.recreation = Math.max(0, updatedPawn.needs.recreation - NEEDS.DECAY.RECREATION);
 
-        // --- Critical Interruption Logic ---
-        // Only interrupt if not already fixing the problem
+        // --- 4. Critical Interruption Logic ---
         
-        // 1. Sleep Critical (< 10)
-        // Explicit cast to string to avoid TS error: comparison appears to be unintentional because the types ... and 'SLEEP' have no overlap
+        // Sleep Critical (< 10)
         if (updatedPawn.needs.sleep < NEEDS.CRITICAL.SLEEP && (updatedPawn.currentJob?.type as string) !== 'SLEEP') {
             logs.push({ message: `[${pawn.name}] collapsed from exhaustion!`, type: 'warning' });
-            // Drop everything
-            if (updatedPawn.currentJob && (updatedPawn.currentJob.type as string) !== 'SLEEP') {
-                 // If holding items for a job, technically should drop them, but we keep inventory simple
-                 // Logic: Clear queue, set immediate sleep
-            }
             updatedPawn.jobQueue = [];
             updatedPawn.currentJob = { id: `sleep-emergency-${Date.now()}`, type: 'SLEEP' };
             updatedPawn.status = 'Sleeping (Floor)';
         }
         
-        // 2. Food Critical (< 15)
+        // Food Critical (< 15)
         else if (updatedPawn.needs.food < NEEDS.CRITICAL.FOOD && updatedPawn.currentJob?.type !== 'EAT' && updatedPawn.currentJob?.nextJob?.type !== 'EAT') {
-             // Only search if not already sleeping
              if ((updatedPawn.currentJob?.type as string) !== 'SLEEP') {
                  const foodJob = findFoodSource(updatedPawn, currentStructures);
                  if (foodJob) {
                      logs.push({ message: `[${pawn.name}] is starving, seeking food.`, type: 'warning' });
-                     updatedPawn.jobQueue = []; // Clear other tasks
+                     updatedPawn.jobQueue = []; 
                      updatedPawn.currentJob = foodJob;
-                 } else {
-                     // Could not find food, will complain in log later or next tick
                  }
              }
         }
 
-        // 3. Recreation Critical (< 20)
+        // Recreation Critical (< 20)
         else if (updatedPawn.needs.recreation < NEEDS.CRITICAL.RECREATION && !updatedPawn.currentJob) {
-             // Look for fun if idle or just moving
              const funJob = findRecreationJob(updatedPawn, currentStructures);
              if (funJob) {
                  logs.push({ message: `[${pawn.name}] needs recreation desperately.`, type: 'info' });
@@ -202,15 +266,14 @@ export const processPawns = (
     
     // 1. Idle Pawns Check Global Queue
     nextPawns = nextPawns.map(pawn => {
+        if (pawn.status === 'Dead') return pawn;
+
         if (!pawn.currentJob && pawn.jobQueue.length === 0 && nextQueue.length > 0 && pawn.needs.sleep > NEEDS.CRITICAL.SLEEP) {
-            // Try to find a job from global queue this pawn can do
             for (let i = 0; i < nextQueue.length; i++) {
                 const jobCandidate = nextQueue[i];
                 const updatedPawn = assignJobToPawn(pawn, jobCandidate, currentStructures);
-                
                 if (updatedPawn) {
-                    // Success taking job
-                    nextQueue.splice(i, 1); // Remove from queue
+                    nextQueue.splice(i, 1);
                     return updatedPawn;
                 }
             }
@@ -218,10 +281,10 @@ export const processPawns = (
         return pawn;
     });
 
-    // 2. Idle Boredom Check (Find Recreation - Non critical)
+    // 2. Idle Boredom Check
     nextPawns = nextPawns.map(pawn => {
+        if (pawn.status === 'Dead') return pawn;
         if (!pawn.currentJob && pawn.jobQueue.length === 0 && nextQueue.length === 0 && pawn.status === 'Idle') {
-            // If needs are decent but recreation isn't full, higher chance to play
             const recChance = pawn.needs.recreation < 80 ? 0.1 : 0.01;
             if (Math.random() < recChance) {
                 const funJob = findRecreationJob(pawn, currentStructures);
@@ -237,6 +300,8 @@ export const processPawns = (
 
     // 3. Process Pawn Actions
     nextPawns = nextPawns.map(pawn => {
+        if (pawn.status === 'Dead') return pawn;
+
         let nextPawn = { ...pawn };
 
         // Queue Advancement
@@ -254,37 +319,54 @@ export const processPawns = (
 
         const job = nextPawn.currentJob;
 
-        // --- NEW JOB TYPES ---
+        // --- JOB TYPES ---
 
         if (job.type === 'SLEEP') {
             nextPawn.status = 'Sleeping';
             nextPawn.needs.sleep = Math.min(100, nextPawn.needs.sleep + NEEDS.REPLENISH.SLEEP);
             if (nextPawn.needs.sleep >= 100) {
+                // WELL RESTED BONUS
+                nextPawn.effects.push({
+                    type: 'WELL_RESTED',
+                    label: 'Well Rested',
+                    duration: EFFECT_DURATION_TICKS,
+                    isPositive: true
+                });
                 logs.push({ message: `[${nextPawn.name}] woke up fully rested.`, type: 'info' });
                 nextPawn.currentJob = null;
                 nextPawn.status = 'Idle';
             }
-            return nextPawn; // Don't move
+            return nextPawn;
         }
 
         if (job.type === 'EAT') {
             nextPawn.status = 'Eating';
-            // Need item in inventory
             const foodName = job.itemsToHandle?.[0]?.itemName;
             if (foodName) {
                 const idx = nextPawn.inventory.findIndex(i => i.name === foodName);
                 if (idx !== -1) {
+                    const nutrition = FOOD_ITEMS[foodName] || 50;
+                    
                     // Consume
                     nextPawn.inventory[idx].quantity -= 1;
                     if (nextPawn.inventory[idx].quantity <= 0) nextPawn.inventory.splice(idx, 1);
                     
-                    nextPawn.needs.food = Math.min(100, nextPawn.needs.food + NEEDS.REPLENISH.EAT);
+                    nextPawn.needs.food = Math.min(100, nextPawn.needs.food + nutrition);
                     logs.push({ message: `[${nextPawn.name}] ate ${foodName}.`, type: 'success' });
                     
+                    // SATED BONUS (Only cooked meals, only if full)
+                    if (nextPawn.needs.food >= 100 && (foodName === 'Simple Meal' || foodName === 'Fine Meal')) {
+                         nextPawn.effects.push({
+                            type: 'SATED',
+                            label: 'Sated',
+                            duration: EFFECT_DURATION_TICKS,
+                            isPositive: true
+                        });
+                    }
+
                     nextPawn.currentJob = null;
                     nextPawn.status = 'Idle';
                 } else {
-                    // Food missing?
                     logs.push({ message: `[${nextPawn.name}] couldn't find food to eat!`, type: 'error' });
                     nextPawn.currentJob = null;
                 }
@@ -292,16 +374,42 @@ export const processPawns = (
             return nextPawn;
         }
 
-        // --- EXISTING JOB TYPES ---
+        // --- MOVEMENT LOGIC with Buffering ---
+        const moveOneStep = (destX: number, destY: number): boolean => {
+            const speedMult = getMoveSpeedMultiplier(nextPawn);
+            // Accumulate movement based on multiplier. Base speed 1.0/tick * multiplier.
+            nextPawn.movementBuffer = (nextPawn.movementBuffer || 0) + (1.0 * speedMult);
 
-        if (job.type === 'MOVE') {
-            // Simple movement logic: 1 tile per tick towards target
-            if (job.targetX !== undefined && job.targetY !== undefined) {
-                const dx = job.targetX - pawn.x;
-                const dy = job.targetY - pawn.y;
+            // While buffer >= 1, take steps. This allows >1 tile per tick for very fast pawns,
+            // or accumulating over multiple ticks for slow pawns.
+            let hasMoved = false;
+            let arrived = false;
+            
+            while (nextPawn.movementBuffer >= 1.0) {
+                const dx = destX - nextPawn.x;
+                const dy = destY - nextPawn.y;
                 
                 if (dx === 0 && dy === 0) {
-                    // Arrived
+                    arrived = true;
+                    break;
+                }
+
+                if (dx !== 0) nextPawn.x += Math.sign(dx);
+                else if (dy !== 0) nextPawn.y += Math.sign(dy);
+                
+                nextPawn.movementBuffer -= 1.0;
+                hasMoved = true;
+            }
+            
+            // Check arrival again in case we arrived exactly
+            if (destX === nextPawn.x && destY === nextPawn.y) return true;
+            return arrived;
+        };
+
+        if (job.type === 'MOVE') {
+            if (job.targetX !== undefined && job.targetY !== undefined) {
+                const arrived = moveOneStep(job.targetX, job.targetY);
+                if (arrived) {
                     if (job.nextJob) {
                         nextPawn.currentJob = job.nextJob;
                     } else {
@@ -310,13 +418,9 @@ export const processPawns = (
                     }
                 } else {
                     nextPawn.status = 'Moving';
-                    // Move one step
-                    if (dx !== 0) nextPawn.x += Math.sign(dx);
-                    else if (dy !== 0) nextPawn.y += Math.sign(dy);
                 }
             }
         } else if (job.type === 'WITHDRAW') {
-             // Move to target first
              const targetStructure = currentStructures.find(s => s.id === job.targetStructureId);
              if (!targetStructure) {
                  logs.push({ message: `[${pawn.name}] Job Failed: Target structure missing`, type: 'error' });
@@ -324,23 +428,19 @@ export const processPawns = (
                  nextPawn.status = 'Idle';
                  return nextPawn;
              }
-
-             const dx = targetStructure.x - pawn.x;
-             const dy = targetStructure.y - pawn.y;
-             const dist = Math.max(Math.abs(dx), Math.abs(dy));
+             
+             // Check distance (Chebyshev)
+             const dist = Math.max(Math.abs(targetStructure.x - nextPawn.x), Math.abs(targetStructure.y - nextPawn.y));
 
              if (dist > 1) { 
                 nextPawn.status = 'Fetching Items';
-                if (dx !== 0) nextPawn.x += Math.sign(dx);
-                else if (dy !== 0) nextPawn.y += Math.sign(dy);
+                moveOneStep(targetStructure.x, targetStructure.y);
              } else {
-                 // At location
                  if (job.itemsToHandle) {
                      nextPawn.status = 'Withdrawing';
                  }
              }
         } else if (job.type === 'WORK') {
-            // Check if at location
             const targetStructure = currentStructures.find(s => s.id === job.targetStructureId);
             if (!targetStructure) {
                 nextPawn.currentJob = null;
@@ -348,18 +448,13 @@ export const processPawns = (
                 return nextPawn;
             }
 
-            const dx = targetStructure.x - pawn.x;
-            const dy = targetStructure.y - pawn.y;
-            const dist = Math.max(Math.abs(dx), Math.abs(dy));
+            const dist = Math.max(Math.abs(targetStructure.x - nextPawn.x), Math.abs(targetStructure.y - nextPawn.y));
             
             if (dist > 1) { 
-                // Move towards it
                 nextPawn.status = 'Moving to Work';
-                if (dx !== 0) nextPawn.x += Math.sign(dx);
-                else if (dy !== 0) nextPawn.y += Math.sign(dy);
+                moveOneStep(targetStructure.x, targetStructure.y);
             } else {
                 nextPawn.status = 'Working';
-                // Progress is handled in Structure Processing
             }
         }
 
