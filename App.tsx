@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import GameMap from './components/GameMap';
 import Sidebar from './components/Sidebar';
 import { Pawn, Structure, StructureDefinition, Job, SkillType, MAP_SIZE, TICK_RATE_MS, Item } from './types';
-import { STRUCTURES, INITIAL_PAWNS, CONSTRUCT_ACTIVITY_ID } from './constants';
+import { STRUCTURES, INITIAL_PAWNS, CONSTRUCT_ACTIVITY_ID, CROPS, HARVEST_ACTIVITY_ID } from './constants';
 import { generateRandomPawn } from './services/geminiService';
 
 const App: React.FC = () => {
@@ -54,6 +54,7 @@ const App: React.FC = () => {
   const [buildMode, setBuildMode] = useState<StructureDefinition | null>(null);
   const [hoverPos, setHoverPos] = useState<{x: number, y: number} | null>(null);
   const [isGeneratingPawn, setIsGeneratingPawn] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   // Refs for Game Loop to access latest state without re-triggering effect
   const stateRef = useRef({ pawns, structures });
@@ -135,7 +136,7 @@ const App: React.FC = () => {
             // Are we adjacent or on top?
             const dist = Math.abs(pawn.x - targetStructure.x) + Math.abs(pawn.y - targetStructure.y);
             
-            if (dist > 2) {
+            if (dist > 2) { // Allow range of 1 for diagonals slightly or adjacent
                 // Move towards it
                 const dx = targetStructure.x - pawn.x;
                 const dy = targetStructure.y - pawn.y;
@@ -156,6 +157,15 @@ const App: React.FC = () => {
     
     const nextStructures = currentStructures.map(struct => {
         let nextStruct = { ...struct };
+
+        // 0. Crop Growth
+        if (nextStruct.type === 'FARM_PLOT' && nextStruct.crop && nextStruct.crop.planted && nextStruct.crop.growth < 100) {
+            const cropDef = CROPS[nextStruct.crop.type];
+            if (cropDef) {
+                // Growth rate per tick
+                nextStruct.crop.growth = Math.min(100, nextStruct.crop.growth + cropDef.growRate);
+            }
+        }
 
         // 1. Handle Instant WITHDRAW actions from pawns at this structure
         finalPawns.forEach((pawn, pIdx) => {
@@ -217,7 +227,7 @@ const App: React.FC = () => {
                     const newProgress = Math.min(100, nextStruct.currentActivity.progress + progressGain);
                     
                     if (newProgress >= 100) {
-                        // Check costs again? We checked when starting job.
+                        // Check costs again
                         const cost = STRUCTURES[nextStruct.type].cost;
                         cost.forEach(c => {
                              const idx = worker.inventory.findIndex(i => i.name === c.itemName);
@@ -263,13 +273,42 @@ const App: React.FC = () => {
                             }
 
                             // Produce Outputs
-                            if (actDef.actionType === 'GATHER' || actDef.actionType === 'CRAFT') {
-                                if (actDef.outputs) {
+                            // Special Handling for Farming
+                            if (nextStruct.type === 'FARM_PLOT') {
+                                if (actId.startsWith('plant_')) {
+                                    // Planting finished
+                                    const cropType = actId.split('_')[1].toUpperCase();
+                                    nextStruct.crop = {
+                                        type: cropType as any,
+                                        growth: 0,
+                                        planted: true
+                                    };
+                                } else if (actId === HARVEST_ACTIVITY_ID) {
+                                    // Harvesting finished
+                                    if (nextStruct.crop && nextStruct.crop.planted) {
+                                        const cropDef = CROPS[nextStruct.crop.type];
+                                        const skillLevel = worker.skills[SkillType.PLANTS] || 0;
+                                        const multiplier = 0.5 + (skillLevel / 20.0) * 1.5;
+                                        const yieldAmount = Math.floor(cropDef.yield * multiplier);
+
+                                        if (yieldAmount > 0) {
+                                             worker.inventory.push({
+                                                id: `food-${Date.now()}`,
+                                                name: cropDef.name, // e.g. "Rice"
+                                                quantity: yieldAmount,
+                                                weight: 1
+                                             });
+                                        }
+                                        // Clear crop
+                                        nextStruct.crop = undefined;
+                                    }
+                                }
+                            } else {
+                                // Standard Outputs
+                                if ((actDef.actionType === 'GATHER' || actDef.actionType === 'CRAFT') && actDef.outputs) {
                                     actDef.outputs.forEach(out => {
                                         let quantityToAdd = out.quantity;
 
-                                        // Skill-based yield for gathering
-                                        // Level 0: 50% yield, Level 20: 200% yield
                                         if (actDef.actionType === 'GATHER') {
                                              const skillLevel = worker.skills[actDef.requiredSkill] || 0;
                                              const multiplier = 0.5 + (skillLevel / 20.0) * 1.5;
@@ -290,21 +329,21 @@ const App: React.FC = () => {
                                             }
                                         }
                                     });
-                                }
-                            } else if (actDef.actionType === 'STORE') {
-                                if (worker.inventory.length > 0) {
-                                    // Move all compatible items
-                                    nextStruct.inventory.push(...worker.inventory);
-                                    worker.inventory = [];
+                                } else if (actDef.actionType === 'STORE') {
+                                    if (worker.inventory.length > 0) {
+                                        nextStruct.inventory.push(...worker.inventory);
+                                        worker.inventory = [];
+                                    }
                                 }
                             }
                             
                             // Check Repeats
                             const repeatsLeft = (nextStruct.currentActivity.repeatsLeft || 1) - 1;
+                            // Farm planting/harvesting doesn't repeat immediately on same tile usually
+                            const isFarm = nextStruct.type === 'FARM_PLOT';
                             
-                            if (repeatsLeft > 0) {
+                            if (repeatsLeft > 0 && !isFarm) {
                                 // Continue
-                                // Verify we still have inputs for next loop
                                 let hasIngredients = true;
                                 if (actDef.inputs) {
                                     actDef.inputs.forEach(inp => {
@@ -320,19 +359,18 @@ const App: React.FC = () => {
                                         repeatsLeft
                                     };
                                 } else {
-                                    // Stop due to lack of ingredients
                                     nextStruct.currentActivity = undefined;
                                     finalPawns[workerIdx].currentJob = null;
                                     finalPawns[workerIdx].status = 'Idle';
                                 }
                             } else {
-                                // Done all repeats
+                                // Done
                                 nextStruct.currentActivity = undefined;
                                 finalPawns[workerIdx].currentJob = null;
                                 finalPawns[workerIdx].status = 'Idle';
 
-                                // If GATHER, destroy structure (it's harvested)
-                                if (actDef.actionType === 'GATHER') {
+                                // If GATHER and not Farm, destroy structure (it's harvested)
+                                if (actDef.actionType === 'GATHER' && nextStruct.type !== 'FARM_PLOT') {
                                     return null; 
                                 }
                             }
@@ -354,26 +392,40 @@ const App: React.FC = () => {
 
   // --- Handlers ---
 
-  const handleTileClick = (x: number, y: number) => {
-    // 1. Build Mode (Place Blueprint)
-    if (buildMode) {
-        // Check collision
-        const collision = structures.find(s => 
-            x >= s.x && x < s.x + STRUCTURES[s.type].width &&
-            y >= s.y && y < s.y + STRUCTURES[s.type].height
-        );
+  const buildAt = (x: number, y: number) => {
+      if (!buildMode) return;
+      
+      // Check collision
+      const collision = structures.find(s => 
+        x >= s.x && x < s.x + STRUCTURES[s.type].width &&
+        y >= s.y && y < s.y + STRUCTURES[s.type].height
+      );
+    
+      if (!collision) {
+        const newStruct: Structure = {
+            id: `struct-${Date.now()}-${Math.random()}`,
+            type: buildMode.type,
+            x,
+            y,
+            inventory: [],
+            isBlueprint: true 
+        };
+        // If farm plot, it's instant build (no cost/time for designating area in MVP) or make it very cheap. 
+        // Prompt implies "designate", usually free. But "construct on grid" usually implies work.
+        // Let's make Farm Plot a blueprint that needs work (0 cost but 10 ticks work).
+        // Wait, STRUCTURES[FARM_PLOT] has empty cost. 
+        // If cost is empty, maybe we skip blueprint phase? RimWorld zones are instant.
+        // But prompt said "build structures". Let's keep it consistent: Place Blueprint -> Construct.
+        // For Farm Plot, Construct act is just "preparing soil".
         
-        if (!collision) {
-            const newStruct: Structure = {
-                id: `struct-${Date.now()}`,
-                type: buildMode.type,
-                x,
-                y,
-                inventory: [],
-                isBlueprint: true // Placed as blueprint
-            };
-            setStructures([...structures, newStruct]);
-        }
+        setStructures(prev => [...prev, newStruct]);
+      }
+  };
+
+  const handleTileClick = (x: number, y: number) => {
+    // 1. Build Mode
+    if (buildMode) {
+        buildAt(x, y);
         return;
     }
 
@@ -420,6 +472,21 @@ const App: React.FC = () => {
     }
   };
 
+  const handleMouseDown = () => {
+      if (buildMode) setIsDragging(true);
+  };
+  
+  const handleMouseUp = () => {
+      setIsDragging(false);
+  };
+
+  const handleTileEnter = (x: number, y: number) => {
+      setHoverPos({x, y});
+      if (isDragging && buildMode) {
+          buildAt(x, y);
+      }
+  };
+
   // Helper to find ingredients
   const findSourceForItems = (itemsNeeded: {itemName: string, quantity: number}[], pawnInventory: Item[]): { itemName: string, quantity: number, sourceId: string }[] | null => {
       const sources: { itemName: string, quantity: number, sourceId: string }[] = [];
@@ -429,20 +496,14 @@ const App: React.FC = () => {
           let missing = need.quantity - inInv;
           
           if (missing > 0) {
-              // Find a structure (Chest) that has this item
-              // We prioritize closest? For MVP just first found.
               const source = structures.find(s => 
                   s.type === 'CHEST' && 
                   s.inventory.some(i => i.name === need.itemName && i.quantity > 0)
               );
               
               if (source) {
-                  // How much can we take?
-                  // We just say we need to fetch 'missing' amount. 
-                  // If chest has less, we might fail later or loop. For MVP assume infinite resource search not needed, just single source.
                   sources.push({ itemName: need.itemName, quantity: missing, sourceId: source.id });
               } else {
-                  // Can't find resource
                   return null; 
               }
           }
@@ -459,18 +520,15 @@ const App: React.FC = () => {
       
       let requiredItems: {itemName: string, quantity: number}[] = [];
       
-      // Determine requirements
       if (activityId === CONSTRUCT_ACTIVITY_ID) {
           requiredItems = def.cost.map(c => ({ itemName: c.itemName, quantity: c.amount }));
       } else {
           const act = def.activities.find(a => a.id === activityId);
           if (act && act.inputs) {
-             // Total needed for all repeats
              requiredItems = act.inputs.map(i => ({ itemName: i.itemName, quantity: i.quantity * count }));
           }
       }
 
-      // Check Inventory & Plan logistics
       let jobChain: Job | undefined = undefined;
       const primaryJob: Job = {
           id: `job-work-${Date.now()}`,
@@ -489,19 +547,6 @@ const App: React.FC = () => {
           }
 
           if (sources.length > 0) {
-              // We need to fetch items.
-              // For MVP, create a chain. If multiple sources, this gets complex. 
-              // Simplification: Handle first source, then user clicks again? 
-              // Better: Chain multiple fetches.
-              
-              let lastJob = primaryJob;
-              
-              // Build chain backwards? No, forward.
-              // Current -> Fetch 1 -> Fetch 2 -> Work
-              
-              // Reversing sources so we attach Work to the last fetch
-              // Actually we can link them: Fetch1.next = Fetch2; Fetch2.next = Work.
-              
               let firstJob: Job | null = null;
               let currentLink: Job | null = null;
 
@@ -527,14 +572,12 @@ const App: React.FC = () => {
                   jobChain = firstJob as Job;
               }
           } else {
-              // Have everything in inventory
               jobChain = primaryJob;
           }
       } else {
           jobChain = primaryJob;
       }
 
-      // Apply Job
       setPawns(prev => prev.map(p => {
           if (p.id === pawnId) {
               return {
@@ -545,7 +588,6 @@ const App: React.FC = () => {
           return p;
       }));
 
-      // Initialize Activity on Structure (Idle state until worker arrives)
       setStructures(prev => prev.map(s => {
           if (s.id === structureId) {
               return {
@@ -591,11 +633,15 @@ const App: React.FC = () => {
   const selectedStructure = structures.find(s => s.id === selectedStructureId);
 
   return (
-    <div className="flex h-screen w-screen bg-black overflow-hidden font-sans">
+    <div className="flex h-screen w-screen bg-black overflow-hidden font-sans"
+         onMouseUp={handleMouseUp} // Global mouse up to catch drags ending outside map
+    >
         <GameMap 
             structures={structures}
             pawns={pawns}
             onTileClick={handleTileClick}
+            onTileEnter={handleTileEnter}
+            onMouseDown={handleMouseDown}
             selectedPawnId={selectedPawnId}
             selectedStructureId={selectedStructureId}
             buildPreview={buildMode}

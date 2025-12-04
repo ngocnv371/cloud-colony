@@ -2,12 +2,14 @@
 import React, { useMemo } from 'react';
 import { Structure, Pawn, MAP_SIZE, StructureDefinition } from '../types';
 import { STRUCTURES } from '../constants';
-import { User, Hammer, Utensils, Zap, Box, Brain, TreeDeciduous, Grape } from 'lucide-react';
+import { User, Hammer, Utensils, Zap, Box, Brain, TreeDeciduous, Grape, Sprout, Wheat, Carrot } from 'lucide-react';
 
 interface GameMapProps {
   structures: Structure[];
   pawns: Pawn[];
   onTileClick: (x: number, y: number) => void;
+  onTileEnter: (x: number, y: number) => void;
+  onMouseDown: () => void;
   selectedPawnId: string | null;
   selectedStructureId: string | null;
   buildPreview: StructureDefinition | null;
@@ -21,6 +23,8 @@ const GameMap: React.FC<GameMapProps> = ({
   structures, 
   pawns, 
   onTileClick, 
+  onTileEnter,
+  onMouseDown,
   selectedPawnId,
   selectedStructureId,
   buildPreview,
@@ -41,12 +45,26 @@ const GameMap: React.FC<GameMapProps> = ({
     }
   };
 
+  const getCropIcon = (type: string, growth: number) => {
+      const isMature = growth >= 100;
+      const className = isMature ? "text-yellow-300 drop-shadow-md" : "text-green-400 opacity-80";
+      
+      if (growth < 30) return <Sprout size={16} className="text-green-300" />;
+      
+      switch(type) {
+          case 'CORN': return <Wheat size={isMature ? 24 : 18} className={className} />;
+          case 'POTATO': return <Carrot size={isMature ? 24 : 18} className={className} />; // Carrot icon as generic root veg
+          default: return <Grape size={isMature ? 24 : 18} className={className} />; // Rice/Generic
+      }
+  };
+
   return (
     <div className="overflow-auto flex-1 bg-stone-900 flex justify-center items-center p-8 cursor-crosshair">
       <div 
         className="relative bg-[#3a4a35] shadow-2xl border-4 border-stone-700"
         style={mapStyle}
         onMouseLeave={() => setHoverPos(null)}
+        onMouseDown={onMouseDown}
       >
         {/* Grid Lines (CSS Background for performance) */}
         <div 
@@ -72,7 +90,7 @@ const GameMap: React.FC<GameMapProps> = ({
                 height: TILE_SIZE,
               }}
               onClick={() => onTileClick(x, y)}
-              onMouseEnter={() => setHoverPos({x, y})}
+              onMouseEnter={() => onTileEnter(x, y)}
             />
           );
         })}
@@ -100,6 +118,7 @@ const GameMap: React.FC<GameMapProps> = ({
                         e.stopPropagation();
                         onTileClick(struct.x, struct.y);
                     }}
+                    onMouseEnter={() => onTileEnter(struct.x, struct.y)}
                 >
                     {/* Visual indicators for structure type */}
                     {struct.type === 'CAMPFIRE' && <Utensils size={24} className="text-white opacity-80" />}
@@ -109,6 +128,13 @@ const GameMap: React.FC<GameMapProps> = ({
                     {struct.type === 'TREE' && <TreeDeciduous size={32} className="text-green-300 opacity-90" />}
                     {struct.type === 'BERRY_BUSH' && <Grape size={24} className="text-red-300 opacity-90" />}
                     
+                    {/* Farm Crops */}
+                    {struct.type === 'FARM_PLOT' && struct.crop && struct.crop.planted && (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            {getCropIcon(struct.crop.type, struct.crop.growth)}
+                        </div>
+                    )}
+
                     {/* Blueprint Label */}
                     {struct.isBlueprint && (
                         <div className="absolute inset-0 flex items-center justify-center bg-blue-900/30">
@@ -123,13 +149,6 @@ const GameMap: React.FC<GameMapProps> = ({
                                 className="h-full bg-yellow-400" 
                                 style={{ width: `${struct.currentActivity.progress}%` }} 
                             />
-                        </div>
-                    )}
-                    
-                    {/* Multi-run indicator */}
-                    {struct.currentActivity && (struct.currentActivity.repeatsLeft || 0) > 0 && (
-                        <div className="absolute -bottom-3 right-0 bg-black text-white text-[10px] px-1 rounded border border-gray-600">
-                            x{struct.currentActivity.repeatsLeft}
                         </div>
                     )}
                 </div>

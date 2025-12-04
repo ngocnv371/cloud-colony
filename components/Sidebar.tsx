@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
 import { Pawn, Structure, StructureDefinition, SkillType, ActivityDefinition } from '../types';
-import { STRUCTURES, CONSTRUCT_ACTIVITY_ID } from '../constants';
-import { X, CheckCircle, Activity, Briefcase, Construction, Package } from 'lucide-react';
+import { STRUCTURES, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID } from '../constants';
+import { X, CheckCircle, Activity, Briefcase, Construction, Package, Sprout } from 'lucide-react';
 
 interface SidebarProps {
   selectedPawn: Pawn | undefined;
@@ -155,6 +155,24 @@ const Sidebar: React.FC<SidebarProps> = ({
                      </h2>
                 </div>
                 
+                {/* Crop Info */}
+                {selectedStructure.crop && (
+                    <div className="mb-2 bg-green-900/30 border border-green-800 p-2 rounded">
+                        <div className="flex justify-between items-center mb-1">
+                            <span className="font-bold text-green-300 flex items-center gap-2">
+                                <Sprout size={14}/> {selectedStructure.crop.type}
+                            </span>
+                            <span className="text-xs text-gray-300">{Math.floor(selectedStructure.crop.growth)}%</span>
+                        </div>
+                        <div className="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden">
+                            <div className="h-full bg-green-500" style={{ width: `${selectedStructure.crop.growth}%` }}></div>
+                        </div>
+                        {selectedStructure.crop.growth >= 100 && (
+                            <div className="text-[10px] text-yellow-300 mt-1 font-bold uppercase tracking-wider">Ready to Harvest</div>
+                        )}
+                    </div>
+                )}
+
                 {/* Structure Inventory */}
                 <div className="mb-4 bg-black/20 p-2 rounded">
                     <h3 className="text-xs font-semibold text-gray-400 uppercase mb-1">Stored Items</h3>
@@ -175,7 +193,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <div className="space-y-2">
                     <div className="flex justify-between items-center mb-2">
                         <h3 className="text-xs font-semibold text-gray-400 uppercase">Available Orders</h3>
-                        {!selectedStructure.isBlueprint && (
+                        {!selectedStructure.isBlueprint && selectedStructure.type !== 'FARM_PLOT' && (
                             <div className="flex items-center gap-2 text-xs">
                                 <span className="text-gray-400">Repeat:</span>
                                 <input 
@@ -208,54 +226,69 @@ const Sidebar: React.FC<SidebarProps> = ({
                             </div>
                         </button>
                     ) : (
-                        // Standard Activities
-                        structureDef.activities.length > 0 ? structureDef.activities.map((act) => {
-                            let canDo = false;
-                            let reason = "";
-                            
-                            if (!selectedPawn) {
-                                reason = "Select a pawn first";
-                            } else {
-                                const skillLevel = selectedPawn.skills[act.requiredSkill];
-                                if (skillLevel < act.requiredLevel) {
-                                    reason = `Need ${act.requiredSkill} ${act.requiredLevel}`;
-                                } else if (selectedPawn.status !== 'Idle' && selectedPawn.status !== 'Moving' && selectedPawn.status !== 'Working') {
-                                    reason = "Pawn is busy";
-                                    canDo = true; // Still allow override
-                                } else {
-                                    canDo = true;
+                        // Standard Activities + Farming Logic
+                        structureDef.activities.length > 0 ? structureDef.activities
+                            .filter(act => {
+                                if (selectedStructure.type === 'FARM_PLOT') {
+                                    const hasCrop = selectedStructure.crop && selectedStructure.crop.planted;
+                                    const isMature = selectedStructure.crop && selectedStructure.crop.growth >= 100;
+                                    
+                                    if (act.id === HARVEST_ACTIVITY_ID) {
+                                        return hasCrop && isMature;
+                                    }
+                                    if (act.id.startsWith('plant_')) {
+                                        return !hasCrop;
+                                    }
                                 }
-                            }
+                                return true;
+                            })
+                            .map((act) => {
+                                let canDo = false;
+                                let reason = "";
+                                
+                                if (!selectedPawn) {
+                                    reason = "Select a pawn first";
+                                } else {
+                                    const skillLevel = selectedPawn.skills[act.requiredSkill];
+                                    if (skillLevel < act.requiredLevel) {
+                                        reason = `Need ${act.requiredSkill} ${act.requiredLevel}`;
+                                    } else if (selectedPawn.status !== 'Idle' && selectedPawn.status !== 'Moving' && selectedPawn.status !== 'Working') {
+                                        reason = "Pawn is busy";
+                                        canDo = true; // Still allow override
+                                    } else {
+                                        canDo = true;
+                                    }
+                                }
 
-                            return (
-                                <button
-                                    key={act.id}
-                                    disabled={!selectedPawn || (!canDo && !reason.includes("busy"))} 
-                                    onClick={() => selectedPawn && onOrderJob(selectedPawn.id, selectedStructure.id, act.id, repeatCount)}
-                                    className={`w-full p-2 rounded text-left flex justify-between items-center group transition-colors relative
-                                        ${(!selectedPawn || !canDo) 
-                                            ? 'opacity-50 cursor-not-allowed bg-gray-800' 
-                                            : 'bg-gray-600 hover:bg-blue-600 text-white'
-                                        }
-                                    `}
-                                >
-                                    <div>
-                                        <div className="font-medium text-sm">{act.name} {repeatCount > 1 && `(x${repeatCount})`}</div>
-                                        <div className="text-[10px] text-gray-300">
-                                            Req: {act.requiredSkill} {act.requiredLevel}
-                                        </div>
-                                        {act.inputs && act.inputs.length > 0 && (
-                                            <div className="text-[10px] text-yellow-200/80 mt-0.5">
-                                                Inputs: {act.inputs.map(i => `${i.quantity * repeatCount} ${i.itemName}`).join(', ')}
+                                return (
+                                    <button
+                                        key={act.id}
+                                        disabled={!selectedPawn || (!canDo && !reason.includes("busy"))} 
+                                        onClick={() => selectedPawn && onOrderJob(selectedPawn.id, selectedStructure.id, act.id, repeatCount)}
+                                        className={`w-full p-2 rounded text-left flex justify-between items-center group transition-colors relative mb-1
+                                            ${(!selectedPawn || !canDo) 
+                                                ? 'opacity-50 cursor-not-allowed bg-gray-800' 
+                                                : 'bg-gray-600 hover:bg-blue-600 text-white'
+                                            }
+                                        `}
+                                    >
+                                        <div>
+                                            <div className="font-medium text-sm">{act.name} {repeatCount > 1 && `(x${repeatCount})`}</div>
+                                            <div className="text-[10px] text-gray-300">
+                                                Req: {act.requiredSkill} {act.requiredLevel}
                                             </div>
-                                        )}
-                                        {reason && !canDo && (
-                                            <div className="text-[10px] text-red-300">{reason}</div>
-                                        )}
-                                    </div>
-                                    {canDo && <CheckCircle size={16} className="text-green-400 opacity-0 group-hover:opacity-100" />}
-                                </button>
-                            );
+                                            {act.inputs && act.inputs.length > 0 && (
+                                                <div className="text-[10px] text-yellow-200/80 mt-0.5">
+                                                    Inputs: {act.inputs.map(i => `${i.quantity * repeatCount} ${i.itemName}`).join(', ')}
+                                                </div>
+                                            )}
+                                            {reason && !canDo && (
+                                                <div className="text-[10px] text-red-300">{reason}</div>
+                                            )}
+                                        </div>
+                                        {canDo && <CheckCircle size={16} className="text-green-400 opacity-0 group-hover:opacity-100" />}
+                                    </button>
+                                );
                         }) : (
                              <p className="text-sm text-gray-500 italic">No activities available.</p>
                         )

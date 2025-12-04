@@ -1,4 +1,5 @@
 
+
 export enum SkillType {
   CONSTRUCTION = 'Construction',
   COOKING = 'Cooking',
@@ -35,7 +36,7 @@ export interface Pawn {
   status: string; // "Idle", "Moving", "Working"
 }
 
-export type ActivityType = 'CRAFT' | 'GATHER' | 'STORE';
+export type ActivityType = 'CRAFT' | 'GATHER' | 'STORE' | 'WORK';
 
 export interface StructureDefinition {
   type: string;
@@ -59,6 +60,12 @@ export interface ActivityDefinition {
   outputs?: { itemName: string; quantity: number }[]; // Simplified output
 }
 
+export interface CropData {
+  type: 'RICE' | 'POTATO' | 'CORN';
+  growth: number; // 0 to 100
+  planted: boolean;
+}
+
 export interface Structure {
   id: string;
   type: string;
@@ -66,6 +73,7 @@ export interface Structure {
   y: number;
   inventory: Item[];
   isBlueprint?: boolean; // If true, it is under construction
+  crop?: CropData; // For farms
   currentActivity?: {
     activityId: string;
     progress: number;

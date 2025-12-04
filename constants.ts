@@ -2,6 +2,13 @@
 import { StructureDefinition, SkillType } from './types';
 
 export const CONSTRUCT_ACTIVITY_ID = 'construct_structure';
+export const HARVEST_ACTIVITY_ID = 'harvest_crop';
+
+export const CROPS = {
+    RICE: { name: 'Rice', growRate: 2.5, yield: 6 }, // Fast, low yield
+    POTATO: { name: 'Potato', growRate: 1.5, yield: 10 }, // Medium
+    CORN: { name: 'Corn', growRate: 0.8, yield: 22 }, // Slow, high yield
+};
 
 export const STRUCTURES: Record<string, StructureDefinition> = {
   WALL: {
@@ -58,7 +65,7 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
         requiredSkill: SkillType.COOKING,
         requiredLevel: 2,
         durationTicks: 15,
-        inputs: [], // Simplified: For MVP, maybe assume corpse is "gathered" or available
+        inputs: [],
         outputs: [{ itemName: 'Raw Meat', quantity: 10 }]
       }
     ]
@@ -78,7 +85,7 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
         requiredSkill: SkillType.INTELLECTUAL,
         requiredLevel: 3,
         durationTicks: 40,
-        outputs: [] // Just grants XP conceptually
+        outputs: []
       }
     ]
   },
@@ -114,12 +121,58 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
             id: 'stock_items',
             name: 'Stock All Items',
             actionType: 'STORE',
-            requiredSkill: SkillType.SOCIAL, // Basic organizational skill
+            requiredSkill: SkillType.SOCIAL,
             requiredLevel: 0,
             durationTicks: 5,
             outputs: []
         }
     ]
+  },
+  FARM_PLOT: {
+      type: 'FARM_PLOT',
+      name: 'Farm Plot',
+      width: 1,
+      height: 1,
+      color: 'bg-amber-900', // Earth color
+      cost: [], // Free to place plot
+      activities: [
+          {
+              id: 'plant_rice',
+              name: 'Plant Rice',
+              actionType: 'WORK',
+              requiredSkill: SkillType.PLANTS,
+              requiredLevel: 0,
+              durationTicks: 10,
+              outputs: []
+          },
+          {
+              id: 'plant_potato',
+              name: 'Plant Potato',
+              actionType: 'WORK',
+              requiredSkill: SkillType.PLANTS,
+              requiredLevel: 3,
+              durationTicks: 12,
+              outputs: []
+          },
+          {
+              id: 'plant_corn',
+              name: 'Plant Corn',
+              actionType: 'WORK',
+              requiredSkill: SkillType.PLANTS,
+              requiredLevel: 5,
+              durationTicks: 15,
+              outputs: []
+          },
+          {
+              id: HARVEST_ACTIVITY_ID,
+              name: 'Harvest Crop',
+              actionType: 'GATHER',
+              requiredSkill: SkillType.PLANTS,
+              requiredLevel: 0,
+              durationTicks: 15,
+              outputs: [] // Dynamic output handled in App.tsx
+          }
+      ]
   },
   TREE: {
       type: 'TREE',
