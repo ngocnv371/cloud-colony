@@ -1,3 +1,4 @@
+
 export enum SkillType {
   CONSTRUCTION = 'Construction',
   COOKING = 'Cooking',
@@ -54,6 +55,7 @@ export interface ActivityDefinition {
   requiredSkill: SkillType;
   requiredLevel: number;
   durationTicks: number; // How long it takes
+  inputs?: { itemName: string; quantity: number }[]; // Ingredients required per iteration
   outputs?: { itemName: string; quantity: number }[]; // Simplified output
 }
 
@@ -63,20 +65,25 @@ export interface Structure {
   x: number;
   y: number;
   inventory: Item[];
+  isBlueprint?: boolean; // If true, it is under construction
   currentActivity?: {
     activityId: string;
     progress: number;
     workerId: string;
+    repeatsLeft?: number; // How many times to repeat this activity
   };
 }
 
 export interface Job {
   id: string;
-  type: 'MOVE' | 'WORK' | 'HAUL';
+  type: 'MOVE' | 'WORK' | 'HAUL' | 'WITHDRAW';
   targetX?: number;
   targetY?: number;
   targetStructureId?: string;
   activityId?: string;
+  activityRepeats?: number; // Number of times to do the activity
+  itemsToHandle?: { itemName: string; quantity: number }[]; // For WITHDRAW/HAUL
+  nextJob?: Job; // The job to start immediately after this one finishes
 }
 
 export const MAP_SIZE = 25;

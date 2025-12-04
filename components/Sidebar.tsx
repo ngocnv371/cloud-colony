@@ -1,12 +1,13 @@
-import React from 'react';
+
+import React, { useState } from 'react';
 import { Pawn, Structure, StructureDefinition, SkillType, ActivityDefinition } from '../types';
-import { STRUCTURES } from '../constants';
-import { X, CheckCircle, Activity, Briefcase } from 'lucide-react';
+import { STRUCTURES, CONSTRUCT_ACTIVITY_ID } from '../constants';
+import { X, CheckCircle, Activity, Briefcase, Construction, Package } from 'lucide-react';
 
 interface SidebarProps {
   selectedPawn: Pawn | undefined;
   selectedStructure: Structure | undefined;
-  onOrderJob: (pawnId: string, structureId: string, activityId: string) => void;
+  onOrderJob: (pawnId: string, structureId: string, activityId: string, count: number) => void;
   buildMode: StructureDefinition | null;
   setBuildMode: (def: StructureDefinition | null) => void;
   pawns: Pawn[];
@@ -26,6 +27,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   
   const structureDef = selectedStructure ? STRUCTURES[selectedStructure.type] : null;
+  const [repeatCount, setRepeatCount] = useState<number>(1);
 
   return (
     <div className="w-96 bg-gray-800 border-l border-gray-700 flex flex-col h-full overflow-hidden shadow-xl z-30">
@@ -48,7 +50,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               <button
                 key={def.type}
                 onClick={() => setBuildMode(buildMode?.type === def.type ? null : def)}
-                className={`p-2 rounded border text-xs font-medium flex flex-col items-center gap-2 transition-all
+                className={`relative p-2 rounded border text-xs font-medium flex flex-col items-center gap-2 transition-all group
                   ${buildMode?.type === def.type 
                     ? 'bg-blue-600 border-blue-400 text-white shadow-lg scale-105' 
                     : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'
@@ -57,6 +59,21 @@ const Sidebar: React.FC<SidebarProps> = ({
               >
                 <div className={`w-6 h-6 rounded ${def.color}`}></div>
                 {def.name}
+                
+                {/* Cost Tooltip */}
+                <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white p-2 rounded z-50 whitespace-nowrap border border-gray-600">
+                    <p className="font-bold border-b border-gray-600 mb-1">Cost:</p>
+                    {def.cost.length > 0 ? (
+                        def.cost.map((c, i) => (
+                            <div key={i} className="flex justify-between gap-4">
+                                <span>{c.itemName}</span>
+                                <span>x{c.amount}</span>
+                            </div>
+                        ))
+                    ) : (
+                        <span>Free</span>
+                    )}
+                </div>
               </button>
             ))}
           </div>
@@ -79,8 +96,11 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <span className="text-yellow-400 font-mono">{selectedPawn.status}</span>
                 </div>
                 {selectedPawn.currentJob && (
-                    <div className="bg-black/30 p-2 rounded text-xs text-gray-300">
-                        Doing: {selectedPawn.currentJob.type}
+                    <div className="bg-black/30 p-2 rounded text-xs text-gray-300 space-y-1">
+                        <div>Doing: {selectedPawn.currentJob.type}</div>
+                        {selectedPawn.currentJob.type === 'WITHDRAW' && (
+                             <div className="text-blue-300">Fetching Ingredients...</div>
+                        )}
                     </div>
                 )}
              </div>
@@ -128,8 +148,12 @@ const Sidebar: React.FC<SidebarProps> = ({
         {/* Selected Structure Context Actions */}
         {selectedStructure && structureDef && (
             <section className="bg-gray-700/50 rounded-lg p-4 border border-gray-600 animate-fade-in">
-                <h2 className="text-lg font-bold text-white mb-1">{structureDef.name}</h2>
-                <p className="text-xs text-gray-400 mb-4">Structure ID: {selectedStructure.id.slice(0,6)}</p>
+                <div className="flex items-center justify-between mb-2">
+                     <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                         {structureDef.name}
+                         {selectedStructure.isBlueprint && <span className="text-xs bg-blue-600 px-2 py-0.5 rounded text-white font-mono">BLUEPRINT</span>}
+                     </h2>
+                </div>
                 
                 {/* Structure Inventory */}
                 <div className="mb-4 bg-black/20 p-2 rounded">
@@ -148,11 +172,44 @@ const Sidebar: React.FC<SidebarProps> = ({
                     )}
                 </div>
 
-                {structureDef.activities.length > 0 ? (
-                    <div className="space-y-2">
+                <div className="space-y-2">
+                    <div className="flex justify-between items-center mb-2">
                         <h3 className="text-xs font-semibold text-gray-400 uppercase">Available Orders</h3>
-                        {structureDef.activities.map((act) => {
-                            // Check if currently selected pawn can do this
+                        {!selectedStructure.isBlueprint && (
+                            <div className="flex items-center gap-2 text-xs">
+                                <span className="text-gray-400">Repeat:</span>
+                                <input 
+                                    type="number" 
+                                    min="1" 
+                                    max="99" 
+                                    value={repeatCount} 
+                                    onChange={(e) => setRepeatCount(Math.max(1, parseInt(e.target.value) || 1))}
+                                    className="w-12 bg-gray-900 border border-gray-600 rounded px-1 text-center"
+                                />
+                            </div>
+                        )}
+                    </div>
+                    
+                    {selectedStructure.isBlueprint ? (
+                        // Blueprint Construction Action
+                         <button
+                            onClick={() => selectedPawn && onOrderJob(selectedPawn.id, selectedStructure.id, CONSTRUCT_ACTIVITY_ID, 1)}
+                            disabled={!selectedPawn}
+                            className={`w-full p-3 rounded text-left flex justify-between items-center group transition-colors border border-dashed
+                                ${!selectedPawn ? 'opacity-50 cursor-not-allowed bg-gray-800' : 'bg-blue-900/40 hover:bg-blue-800 border-blue-500 text-blue-100'}
+                            `}
+                        >
+                            <div className="flex flex-col">
+                                <span className="font-bold flex items-center gap-2"><Construction size={16}/> Construct {structureDef.name}</span>
+                                <div className="text-xs text-blue-300 mt-1">Requires: Construction Lv 0</div>
+                                <div className="text-xs text-gray-400 mt-1">
+                                    Needs: {structureDef.cost.map(c => `${c.amount} ${c.itemName}`).join(', ')}
+                                </div>
+                            </div>
+                        </button>
+                    ) : (
+                        // Standard Activities
+                        structureDef.activities.length > 0 ? structureDef.activities.map((act) => {
                             let canDo = false;
                             let reason = "";
                             
@@ -162,12 +219,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 const skillLevel = selectedPawn.skills[act.requiredSkill];
                                 if (skillLevel < act.requiredLevel) {
                                     reason = `Need ${act.requiredSkill} ${act.requiredLevel}`;
-                                } else if (selectedPawn.status !== 'Idle') {
+                                } else if (selectedPawn.status !== 'Idle' && selectedPawn.status !== 'Moving' && selectedPawn.status !== 'Working') {
                                     reason = "Pawn is busy";
-                                    canDo = true; // Still allow overriding
-                                } else if (act.actionType === 'STORE' && selectedPawn.inventory.length === 0) {
-                                    reason = "Inventory empty";
-                                    canDo = false;
+                                    canDo = true; // Still allow override
                                 } else {
                                     canDo = true;
                                 }
@@ -176,9 +230,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                             return (
                                 <button
                                     key={act.id}
-                                    disabled={!selectedPawn || (!canDo && selectedPawn?.status !== 'Moving' && selectedPawn?.status !== 'Working')} 
-                                    onClick={() => selectedPawn && onOrderJob(selectedPawn.id, selectedStructure.id, act.id)}
-                                    className={`w-full p-2 rounded text-left flex justify-between items-center group transition-colors
+                                    disabled={!selectedPawn || (!canDo && !reason.includes("busy"))} 
+                                    onClick={() => selectedPawn && onOrderJob(selectedPawn.id, selectedStructure.id, act.id, repeatCount)}
+                                    className={`w-full p-2 rounded text-left flex justify-between items-center group transition-colors relative
                                         ${(!selectedPawn || !canDo) 
                                             ? 'opacity-50 cursor-not-allowed bg-gray-800' 
                                             : 'bg-gray-600 hover:bg-blue-600 text-white'
@@ -186,10 +240,15 @@ const Sidebar: React.FC<SidebarProps> = ({
                                     `}
                                 >
                                     <div>
-                                        <div className="font-medium text-sm">{act.name}</div>
+                                        <div className="font-medium text-sm">{act.name} {repeatCount > 1 && `(x${repeatCount})`}</div>
                                         <div className="text-[10px] text-gray-300">
                                             Req: {act.requiredSkill} {act.requiredLevel}
                                         </div>
+                                        {act.inputs && act.inputs.length > 0 && (
+                                            <div className="text-[10px] text-yellow-200/80 mt-0.5">
+                                                Inputs: {act.inputs.map(i => `${i.quantity * repeatCount} ${i.itemName}`).join(', ')}
+                                            </div>
+                                        )}
                                         {reason && !canDo && (
                                             <div className="text-[10px] text-red-300">{reason}</div>
                                         )}
@@ -197,11 +256,11 @@ const Sidebar: React.FC<SidebarProps> = ({
                                     {canDo && <CheckCircle size={16} className="text-green-400 opacity-0 group-hover:opacity-100" />}
                                 </button>
                             );
-                        })}
-                    </div>
-                ) : (
-                    <p className="text-sm text-gray-500 italic">No activities available at this structure.</p>
-                )}
+                        }) : (
+                             <p className="text-sm text-gray-500 italic">No activities available.</p>
+                        )
+                    )}
+                </div>
             </section>
         )}
 

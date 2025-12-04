@@ -1,4 +1,7 @@
+
 import { StructureDefinition, SkillType } from './types';
+
+export const CONSTRUCT_ACTIVITY_ID = 'construct_structure';
 
 export const STRUCTURES: Record<string, StructureDefinition> = {
   WALL: {
@@ -7,7 +10,7 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     width: 1,
     height: 1,
     color: 'bg-stone-500',
-    cost: [],
+    cost: [{ itemName: 'Wood', amount: 5 }],
     activities: []
   },
   CAMPFIRE: {
@@ -16,7 +19,7 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     width: 1,
     height: 1,
     color: 'bg-orange-500',
-    cost: [],
+    cost: [{ itemName: 'Wood', amount: 10 }],
     activities: [
       {
         id: 'cook_simple',
@@ -25,6 +28,7 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
         requiredSkill: SkillType.COOKING,
         requiredLevel: 0,
         durationTicks: 10,
+        inputs: [{ itemName: 'Berries', quantity: 5 }],
         outputs: [{ itemName: 'Simple Meal', quantity: 1 }]
       },
       {
@@ -34,6 +38,7 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
         requiredSkill: SkillType.COOKING,
         requiredLevel: 5,
         durationTicks: 20,
+        inputs: [{ itemName: 'Raw Meat', quantity: 5 }],
         outputs: [{ itemName: 'Fine Meal', quantity: 1 }]
       }
     ]
@@ -44,7 +49,7 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     width: 2,
     height: 1,
     color: 'bg-red-800',
-    cost: [],
+    cost: [{ itemName: 'Wood', amount: 20 }],
     activities: [
       {
         id: 'butcher_creature',
@@ -53,6 +58,7 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
         requiredSkill: SkillType.COOKING,
         requiredLevel: 2,
         durationTicks: 15,
+        inputs: [], // Simplified: For MVP, maybe assume corpse is "gathered" or available
         outputs: [{ itemName: 'Raw Meat', quantity: 10 }]
       }
     ]
@@ -63,7 +69,7 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     width: 2,
     height: 2,
     color: 'bg-blue-700',
-    cost: [],
+    cost: [{ itemName: 'Wood', amount: 30 }, { itemName: 'Iron', amount: 10 }],
     activities: [
       {
         id: 'research_basic',
@@ -82,7 +88,7 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     width: 2,
     height: 1,
     color: 'bg-amber-600',
-    cost: [],
+    cost: [{ itemName: 'Wood', amount: 25 }],
     activities: [
       {
         id: 'craft_club',
@@ -91,6 +97,7 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
         requiredSkill: SkillType.CONSTRUCTION,
         requiredLevel: 2,
         durationTicks: 30,
+        inputs: [{ itemName: 'Wood', quantity: 10 }],
         outputs: [{ itemName: 'Wooden Club', quantity: 1 }]
       }
     ]
@@ -101,7 +108,7 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     width: 1,
     height: 1,
     color: 'bg-amber-800',
-    cost: [],
+    cost: [{ itemName: 'Wood', amount: 15 }],
     activities: [
         {
             id: 'stock_items',

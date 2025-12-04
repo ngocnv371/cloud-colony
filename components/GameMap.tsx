@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { Structure, Pawn, MAP_SIZE, StructureDefinition } from '../types';
 import { STRUCTURES } from '../constants';
@@ -35,6 +36,7 @@ const GameMap: React.FC<GameMapProps> = ({
   const getPawnIcon = (jobType?: string) => {
     switch(jobType) {
         case 'WORK': return <Hammer size={16} className="text-yellow-300 animate-pulse" />;
+        case 'WITHDRAW': return <Box size={16} className="text-blue-300" />;
         default: return <User size={20} className="text-white" />;
     }
   };
@@ -84,8 +86,9 @@ const GameMap: React.FC<GameMapProps> = ({
             return (
                 <div
                     key={struct.id}
-                    className={`absolute flex items-center justify-center border transition-all
-                        ${def.color} ${isSelected ? 'border-4 border-white z-10' : 'border-stone-800'}
+                    className={`absolute flex items-center justify-center transition-all
+                        ${def.color} ${isSelected ? 'border-4 border-white z-10' : 'border border-stone-800'}
+                        ${struct.isBlueprint ? 'opacity-60 border-2 border-dashed border-blue-300' : ''}
                     `}
                     style={{
                         left: struct.x * TILE_SIZE,
@@ -106,13 +109,27 @@ const GameMap: React.FC<GameMapProps> = ({
                     {struct.type === 'TREE' && <TreeDeciduous size={32} className="text-green-300 opacity-90" />}
                     {struct.type === 'BERRY_BUSH' && <Grape size={24} className="text-red-300 opacity-90" />}
                     
+                    {/* Blueprint Label */}
+                    {struct.isBlueprint && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-blue-900/30">
+                            <Hammer size={16} className="text-blue-200 animate-pulse" />
+                        </div>
+                    )}
+
                     {/* Progress Bar for Active Job */}
                     {struct.currentActivity && (
-                        <div className="absolute -top-3 left-0 w-full h-2 bg-gray-700 rounded-full overflow-hidden border border-black">
+                        <div className="absolute -top-3 left-0 w-full h-2 bg-gray-700 rounded-full overflow-hidden border border-black z-20">
                             <div 
                                 className="h-full bg-yellow-400" 
                                 style={{ width: `${struct.currentActivity.progress}%` }} 
                             />
+                        </div>
+                    )}
+                    
+                    {/* Multi-run indicator */}
+                    {struct.currentActivity && (struct.currentActivity.repeatsLeft || 0) > 0 && (
+                        <div className="absolute -bottom-3 right-0 bg-black text-white text-[10px] px-1 rounded border border-gray-600">
+                            x{struct.currentActivity.repeatsLeft}
                         </div>
                     )}
                 </div>
