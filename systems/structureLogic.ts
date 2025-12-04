@@ -1,3 +1,5 @@
+
+
 import { Pawn, Structure, LogEntry, SkillType } from '../types';
 import { STRUCTURES, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID, CROPS } from '../constants';
 import { addItemToInventory } from '../utils/inventoryUtils';
@@ -195,6 +197,9 @@ const completeActivity = (structure: Structure, pawns: Pawn[], workerIdx: number
                 nextStruct.crop = undefined;
             }
         }
+    } else if (actDef.actionType === 'RECREATION') {
+        // Recreation just logs and finishes
+        logMsg = `[${worker.name}] finished ${actDef.name} (Recreation)`;
     } else {
         if ((actDef.actionType === 'GATHER' || actDef.actionType === 'CRAFT') && actDef.outputs) {
             actDef.outputs.forEach(out => {
@@ -260,6 +265,8 @@ const completeActivity = (structure: Structure, pawns: Pawn[], workerIdx: number
         worker.currentJob = null;
         worker.status = 'Idle';
 
+        // GATHER typically destroys the source (Mining/Chopping), unless it's a farm.
+        // RECREATION does not destroy the source.
         if (actDef.actionType === 'GATHER' && nextStruct.type !== 'FARM_PLOT') {
             pawns[workerIdx] = worker;
             return null; // Destroy source

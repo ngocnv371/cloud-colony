@@ -1,4 +1,5 @@
 
+
 import { StructureDefinition, SkillType } from './types';
 
 export const CONSTRUCT_ACTIVITY_ID = 'construct_structure';
@@ -127,6 +128,44 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
       }
     ]
   },
+  CHESS_TABLE: {
+    type: 'CHESS_TABLE',
+    name: 'Chess Table',
+    width: 1,
+    height: 1,
+    color: 'bg-neutral-800',
+    cost: [{ itemName: 'Wood', amount: 20 }, { itemName: 'Steel', amount: 5 }],
+    activities: [
+        {
+            id: 'play_chess',
+            name: 'Play Chess',
+            actionType: 'RECREATION',
+            requiredSkill: SkillType.INTELLECTUAL,
+            requiredLevel: 0,
+            durationTicks: 40,
+            outputs: []
+        }
+    ]
+  },
+  WOODEN_POLE: {
+    type: 'WOODEN_POLE',
+    name: 'Wooden Dummy',
+    width: 1,
+    height: 1,
+    color: 'bg-amber-500',
+    cost: [{ itemName: 'Wood', amount: 20 }],
+    activities: [
+        {
+            id: 'practice_kungfu',
+            name: 'Practice Kung Fu',
+            actionType: 'RECREATION',
+            requiredSkill: SkillType.MELEE,
+            requiredLevel: 0,
+            durationTicks: 30,
+            outputs: []
+        }
+    ]
+  },
   CHEST: {
     type: 'CHEST',
     name: 'Storage Chest',
@@ -209,6 +248,22 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
               requiredLevel: 0,
               durationTicks: 20,
               outputs: [{ itemName: 'Wood', quantity: 15 }]
+          },
+          {
+              id: 'climb_tree',
+              name: 'Climb Tree',
+              actionType: 'RECREATION',
+              requiredSkill: SkillType.MELEE,
+              requiredLevel: 0,
+              durationTicks: 25
+          },
+          {
+              id: 'hug_tree',
+              name: 'Hug Tree',
+              actionType: 'RECREATION',
+              requiredSkill: SkillType.SOCIAL,
+              requiredLevel: 0,
+              durationTicks: 15
           }
       ]
   },
@@ -229,6 +284,14 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
               requiredLevel: 0,
               durationTicks: 10,
               outputs: [{ itemName: 'Berries', quantity: 8 }]
+          },
+          {
+              id: 'hide_in_bush',
+              name: 'Hide in Bush',
+              actionType: 'RECREATION',
+              requiredSkill: SkillType.PLANTS,
+              requiredLevel: 0,
+              durationTicks: 20
           }
       ]
   },
@@ -250,6 +313,22 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
             requiredLevel: 0,
             durationTicks: 25,
             outputs: [{ itemName: 'Stone', quantity: 20 }]
+        },
+        {
+            id: 'climb_boulder',
+            name: 'Climb Boulder',
+            actionType: 'RECREATION',
+            requiredSkill: SkillType.MELEE,
+            requiredLevel: 0,
+            durationTicks: 25
+        },
+        {
+            id: 'watch_clouds',
+            name: 'Watch Clouds',
+            actionType: 'RECREATION',
+            requiredSkill: SkillType.INTELLECTUAL,
+            requiredLevel: 0,
+            durationTicks: 30
         }
     ]
   },

@@ -37,7 +37,7 @@ export interface Pawn {
   status: string; // "Idle", "Moving", "Working"
 }
 
-export type ActivityType = 'CRAFT' | 'GATHER' | 'STORE' | 'WORK';
+export type ActivityType = 'CRAFT' | 'GATHER' | 'STORE' | 'WORK' | 'RECREATION';
 
 export interface StructureDefinition {
   type: string;

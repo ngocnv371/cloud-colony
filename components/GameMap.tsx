@@ -1,8 +1,9 @@
 
+
 import React, { useMemo } from 'react';
 import { Structure, Pawn, MAP_SIZE, StructureDefinition } from '../types';
 import { STRUCTURES } from '../constants';
-import { User, Hammer, Utensils, Zap, Box, Brain, TreeDeciduous, Grape, Sprout, Wheat, Carrot, Mountain, Axe, Pickaxe, Scissors } from 'lucide-react';
+import { User, Hammer, Utensils, Zap, Box, Brain, TreeDeciduous, Grape, Sprout, Wheat, Carrot, Mountain, Axe, Pickaxe, Scissors, Gamepad2, Swords } from 'lucide-react';
 
 interface GameMapProps {
   structures: Structure[];
@@ -72,6 +73,8 @@ const GameMap: React.FC<GameMapProps> = ({
           case 'RESEARCH_BENCH': return <Brain size={24} className="text-white opacity-80" />;
           case 'WORKBENCH': return <Hammer size={24} className="text-white opacity-80" />;
           case 'CHEST': return <Box size={24} className="text-white opacity-80" />;
+          case 'CHESS_TABLE': return <Gamepad2 size={24} className="text-white opacity-80" />;
+          case 'WOODEN_POLE': return <Swords size={24} className="text-white opacity-80" />;
           case 'TREE': return <TreeDeciduous size={32} className="text-green-300 opacity-90" />;
           case 'BERRY_BUSH': return <Grape size={24} className="text-red-300 opacity-90" />;
           case 'BOULDER': return <Mountain size={28} className="text-stone-300 opacity-90" />;

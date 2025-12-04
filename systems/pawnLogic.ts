@@ -1,3 +1,5 @@
+
+
 import { Pawn, Job, Structure, LogEntry } from '../types';
 import { STRUCTURES, CONSTRUCT_ACTIVITY_ID } from '../constants';
 import { findSourceForItems } from '../utils/inventoryUtils';
@@ -87,7 +89,46 @@ export const processPawns = (
         return pawn;
     });
 
-    // 2. Process Pawn Actions
+    // 2. Idle Boredom Check (Find Recreation)
+    nextPawns = nextPawns.map(pawn => {
+        if (!pawn.currentJob && pawn.jobQueue.length === 0 && nextQueue.length === 0 && pawn.status === 'Idle') {
+            // Small chance per tick to get bored and look for fun to avoid spamming
+            if (Math.random() < 0.05) {
+                const nearbyFun = currentStructures.filter(s => {
+                    const def = STRUCTURES[s.type];
+                    const recActs = def.activities.filter(a => a.actionType === 'RECREATION');
+                    if (recActs.length === 0) return false;
+                    
+                    // Simple distance check (e.g. within 15 tiles)
+                    const dist = Math.abs(s.x - pawn.x) + Math.abs(s.y - pawn.y);
+                    return dist < 15 && !s.currentActivity; // Only if free
+                });
+
+                if (nearbyFun.length > 0) {
+                    const randomStruct = nearbyFun[Math.floor(Math.random() * nearbyFun.length)];
+                    const def = STRUCTURES[randomStruct.type];
+                    const recActs = def.activities.filter(a => a.actionType === 'RECREATION');
+                    const randomAct = recActs[Math.floor(Math.random() * recActs.length)];
+
+                    logs.push({ message: `[${pawn.name}] decided to ${randomAct.name}`, type: 'info' });
+
+                    const funJob: Job = {
+                        id: `job-fun-${Date.now()}`,
+                        type: 'WORK',
+                        targetStructureId: randomStruct.id,
+                        activityId: randomAct.id,
+                        activityRepeats: 1
+                    };
+
+                    const updatedPawn = assignJobToPawn(pawn, funJob, currentStructures);
+                    if (updatedPawn) return updatedPawn;
+                }
+            }
+        }
+        return pawn;
+    });
+
+    // 3. Process Pawn Actions
     nextPawns = nextPawns.map(pawn => {
         // Check if Idle but has Queue (Personal Queue)
         if (!pawn.currentJob && pawn.jobQueue.length > 0) {
