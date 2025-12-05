@@ -1,6 +1,4 @@
-
-
-import React, { useMemo } from 'react';
+import React, { useMemo, forwardRef } from 'react';
 import { Structure, Pawn, MAP_SIZE, StructureDefinition } from '../types';
 import { STRUCTURES } from '../constants';
 import { UserRound, Hammer, Utensils, Zap, Box, Brain, TreeDeciduous, Grape, Sprout, Wheat, Carrot, Mountain, Axe, Pickaxe, Scissors, Gamepad2, Swords, Moon, Footprints, Skull } from 'lucide-react';
@@ -23,7 +21,7 @@ interface GameMapProps {
 
 const TILE_SIZE = 48; // px
 
-const GameMap: React.FC<GameMapProps> = ({ 
+const GameMap = forwardRef<HTMLDivElement, GameMapProps>(({ 
   structures, 
   pawns, 
   onTileClick, 
@@ -37,7 +35,7 @@ const GameMap: React.FC<GameMapProps> = ({
   hoverPos,
   setHoverPos,
   queuedTargets
-}) => {
+}, ref) => {
   
   const mapStyle = {
     width: MAP_SIZE * TILE_SIZE,
@@ -99,7 +97,7 @@ const GameMap: React.FC<GameMapProps> = ({
   };
 
   return (
-    <div className={`overflow-auto flex-1 bg-stone-900 flex justify-center items-center p-8 ${cursorClass}`}>
+    <div ref={ref} className={`overflow-auto flex-1 bg-stone-900 flex justify-center items-center p-8 ${cursorClass}`}>
       <div 
         className="relative bg-[#3a4a35] shadow-2xl border-4 border-stone-700"
         style={mapStyle}
@@ -261,6 +259,6 @@ const GameMap: React.FC<GameMapProps> = ({
       </div>
     </div>
   );
-};
+});
 
 export default GameMap;

@@ -1,10 +1,9 @@
-
-
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import GameMap from './components/GameMap';
 import Sidebar from './components/Sidebar';
 import LogPanel from './components/LogPanel';
 import ResourceHUD from './components/ResourceHUD';
+import TopBar from './components/TopBar';
 import { Pawn, Structure, StructureDefinition, Job, MAP_SIZE, TICK_RATE_MS, LogEntry, SkillType } from './types';
 import { STRUCTURES, INITIAL_PAWNS, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID, NATURAL_SPAWN_CHANCE, JOY_DURATION_TICKS } from './constants';
 import { generateRandomPawn } from './services/geminiService';
@@ -55,9 +54,11 @@ const App: React.FC = () => {
   const [isGeneratingPawn, setIsGeneratingPawn] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<{x: number, y: number} | null>(null);
-
-  // Refs for Game Loop to access latest state without re-triggering effect
+  
+  // Refs
   const stateRef = useRef({ pawns, structures, logs, globalJobQueue });
+  const mapContainerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     stateRef.current = { pawns, structures, logs, globalJobQueue };
   }, [pawns, structures, logs, globalJobQueue]);
@@ -418,6 +419,27 @@ const App: React.FC = () => {
           setGlobalJobQueue(prev => [...prev, ...queueJobs]);
       }
   };
+  
+  const handlePawnFocus = (pawn: Pawn) => {
+      setSelectedPawnId(pawn.id);
+      setSelectedStructureId(null);
+
+      // Camera Focus Logic
+      if (mapContainerRef.current) {
+          const TILE_SIZE = 48; // Must match GameMap
+          const container = mapContainerRef.current;
+          
+          // Center the pawn
+          const targetX = pawn.x * TILE_SIZE;
+          const targetY = pawn.y * TILE_SIZE;
+          
+          container.scrollTo({
+              left: targetX - container.clientWidth / 2 + TILE_SIZE / 2,
+              top: targetY - container.clientHeight / 2 + TILE_SIZE / 2,
+              behavior: 'smooth'
+          });
+      }
+  };
 
   const handleGeneratePawn = async () => {
       setIsGeneratingPawn(true);
@@ -467,7 +489,14 @@ const App: React.FC = () => {
     <div className="flex h-screen w-screen bg-black overflow-hidden font-sans"
          onMouseUp={handleMouseUp} // Global mouse up to catch drags ending outside map
     >
+        <TopBar 
+            pawns={pawns} 
+            selectedPawnId={selectedPawnId} 
+            onSelectPawn={handlePawnFocus} 
+        />
+        
         <GameMap 
+            ref={mapContainerRef}
             structures={structures}
             pawns={pawns}
             onTileClick={handleTileClick}
