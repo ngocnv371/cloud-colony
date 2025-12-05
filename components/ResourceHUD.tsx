@@ -3,6 +3,17 @@ import React, { useMemo } from 'react';
 import { useGame } from '../store/gameStore';
 import { Box, Wheat, Hammer, Mountain, Coins, Drumstick, Database } from 'lucide-react';
 
+const getIcon = (name: string) => {
+    const lower = name.toLowerCase();
+    if (lower.includes('meat') || lower.includes('meal')) return <Drumstick size={14} className="text-orange-400" />;
+    if (lower.includes('rice') || lower.includes('potato') || lower.includes('corn') || lower.includes('berry')) return <Wheat size={14} className="text-yellow-400" />;
+    if (lower.includes('wood')) return <Box size={14} className="text-amber-600" />;
+    if (lower.includes('stone') || lower.includes('boulder')) return <Mountain size={14} className="text-stone-400" />;
+    if (lower.includes('steel')) return <Hammer size={14} className="text-blue-300" />;
+    if (lower.includes('gold') || lower.includes('silver') || lower.includes('uranium')) return <Coins size={14} className="text-yellow-200" />;
+    return <Box size={14} className="text-gray-500" />;
+};
+
 const ResourceHUD: React.FC = () => {
   const { state } = useGame();
   const { structures, pawns } = state;
@@ -20,16 +31,6 @@ const ResourceHUD: React.FC = () => {
     return Object.entries(counts).sort((a, b) => a[0].localeCompare(b[0]));
   }, [structures, pawns]);
 
-  const getIcon = (name: string) => {
-      const lower = name.toLowerCase();
-      if (lower.includes('meat') || lower.includes('meal')) return <Drumstick size={14} className="text-orange-400" />;
-      if (lower.includes('rice') || lower.includes('potato') || lower.includes('corn') || lower.includes('berry')) return <Wheat size={14} className="text-yellow-400" />;
-      if (lower.includes('wood')) return <Box size={14} className="text-amber-600" />;
-      if (lower.includes('stone') || lower.includes('boulder')) return <Mountain size={14} className="text-stone-400" />;
-      if (lower.includes('steel')) return <Hammer size={14} className="text-blue-300" />;
-      if (lower.includes('gold') || lower.includes('silver') || lower.includes('uranium')) return <Coins size={14} className="text-yellow-200" />;
-      return <Box size={14} className="text-gray-500" />;
-  };
 
   return (
     <div className="absolute top-4 left-4 bg-gray-900/80 backdrop-blur-md border border-gray-700 p-3 rounded-lg shadow-xl z-40 pointer-events-none min-w-[180px] select-none transition-all duration-300">

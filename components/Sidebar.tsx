@@ -7,6 +7,24 @@ import PawnDetails from './PawnDetails';
 import { StructureDefinition, SkillType, ActivityDefinition, Structure } from '../types';
 import { CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID } from '../constants';
 
+const getStructureIcon = (def: StructureDefinition) => {
+    const size = 24;
+    switch(def.type) {
+        case 'WOOD_WALL': return <BrickWall size={size} className="text-amber-600" />;
+        case 'STONE_WALL': return <BrickWall size={size} className="text-stone-400" />;
+        case 'STEEL_WALL': return <BrickWall size={size} className="text-slate-400" />;
+        case 'CAMPFIRE': return <Flame size={size} className="text-orange-500" />;
+        case 'BUTCHER_TABLE': return <Utensils size={size} className="text-red-400" />;
+        case 'RESEARCH_BENCH': return <Brain size={size} className="text-blue-400" />;
+        case 'WORKBENCH': return <Hammer size={size} className="text-amber-500" />;
+        case 'CHESS_TABLE': return <Gamepad2 size={size} className="text-gray-300" />;
+        case 'WOODEN_POLE': return <Swords size={size} className="text-amber-300" />;
+        case 'CHEST': return <Box size={size} className="text-amber-700" />;
+        case 'FARM_PLOT': return <Sprout size={size} className="text-green-500" />;
+        default: return <Square size={size} className="text-gray-500" />;
+    }
+};
+
 interface SidebarProps {
   onGeneratePawn: () => void;
 }
@@ -37,24 +55,6 @@ const Sidebar: React.FC<SidebarProps> = ({ onGeneratePawn }) => {
           activityId, 
           count 
       });
-  };
-
-  const getStructureIcon = (def: StructureDefinition) => {
-      const size = 24;
-      switch(def.type) {
-          case 'WOOD_WALL': return <BrickWall size={size} className="text-amber-600" />;
-          case 'STONE_WALL': return <BrickWall size={size} className="text-stone-400" />;
-          case 'STEEL_WALL': return <BrickWall size={size} className="text-slate-400" />;
-          case 'CAMPFIRE': return <Flame size={size} className="text-orange-500" />;
-          case 'BUTCHER_TABLE': return <Utensils size={size} className="text-red-400" />;
-          case 'RESEARCH_BENCH': return <Brain size={size} className="text-blue-400" />;
-          case 'WORKBENCH': return <Hammer size={size} className="text-amber-500" />;
-          case 'CHESS_TABLE': return <Gamepad2 size={size} className="text-gray-300" />;
-          case 'WOODEN_POLE': return <Swords size={size} className="text-amber-300" />;
-          case 'CHEST': return <Box size={size} className="text-amber-700" />;
-          case 'FARM_PLOT': return <Sprout size={size} className="text-green-500" />;
-          default: return <Square size={size} className="text-gray-500" />;
-      }
   };
 
   return (

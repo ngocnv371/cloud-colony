@@ -3,6 +3,19 @@ import React from 'react';
 import { Pawn } from '../types';
 import { useGame } from '../store/gameStore';
 import { UserRound, Hammer, Utensils, Moon, Footprints, Skull, Box } from 'lucide-react';
+  
+const getPawnIcon = (pawn: Pawn) => {
+  if (pawn.status === 'Dead') return <Skull size={16} className="text-gray-500" />;
+  
+  switch(pawn.currentJob?.type) {
+      case 'WORK': return <Hammer size={14} className="text-yellow-300" />;
+      case 'WITHDRAW': return <Box size={14} className="text-blue-300" />;
+      case 'SLEEP': return <Moon size={14} className="text-purple-300" />;
+      case 'EAT': return <Utensils size={14} className="text-green-300" />;
+      case 'MOVE': return <Footprints size={14} className="text-white/80" />;
+      default: return <UserRound size={16} className="text-white" />;
+  }
+};
 
 interface TopBarProps {
   onSelectPawn: (pawn: Pawn) => void;
@@ -11,19 +24,6 @@ interface TopBarProps {
 const TopBar: React.FC<TopBarProps> = ({ onSelectPawn }) => {
   const { state } = useGame();
   const { pawns, selectedPawnId } = state;
-  
-  const getPawnIcon = (pawn: Pawn) => {
-    if (pawn.status === 'Dead') return <Skull size={16} className="text-gray-500" />;
-    
-    switch(pawn.currentJob?.type) {
-        case 'WORK': return <Hammer size={14} className="text-yellow-300" />;
-        case 'WITHDRAW': return <Box size={14} className="text-blue-300" />;
-        case 'SLEEP': return <Moon size={14} className="text-purple-300" />;
-        case 'EAT': return <Utensils size={14} className="text-green-300" />;
-        case 'MOVE': return <Footprints size={14} className="text-white/80" />;
-        default: return <UserRound size={16} className="text-white" />;
-    }
-  };
 
   return (
     <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 flex gap-2 p-2 bg-gray-900/80 backdrop-blur-md border border-gray-700 rounded-lg shadow-xl overflow-x-auto max-w-[60vw] no-scrollbar">
