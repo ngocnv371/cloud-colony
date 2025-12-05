@@ -1,18 +1,8 @@
 
 import React, { useMemo } from 'react';
 import { useGame } from '../store/gameStore';
-import { Box, Wheat, Hammer, Mountain, Coins, Drumstick, Database } from 'lucide-react';
-
-const getIcon = (name: string) => {
-    const lower = name.toLowerCase();
-    if (lower.includes('meat') || lower.includes('meal')) return <Drumstick size={14} className="text-orange-400" />;
-    if (lower.includes('rice') || lower.includes('potato') || lower.includes('corn') || lower.includes('berry')) return <Wheat size={14} className="text-yellow-400" />;
-    if (lower.includes('wood')) return <Box size={14} className="text-amber-600" />;
-    if (lower.includes('stone') || lower.includes('boulder')) return <Mountain size={14} className="text-stone-400" />;
-    if (lower.includes('steel')) return <Hammer size={14} className="text-blue-300" />;
-    if (lower.includes('gold') || lower.includes('silver') || lower.includes('uranium')) return <Coins size={14} className="text-yellow-200" />;
-    return <Box size={14} className="text-gray-500" />;
-};
+import { Database } from 'lucide-react';
+import { getResourceIcon } from '../utils/iconUtils';
 
 const ResourceHUD: React.FC = () => {
   const { state } = useGame();
@@ -46,7 +36,7 @@ const ResourceHUD: React.FC = () => {
               <div key={name} className="flex justify-between items-center group">
                 <div className="flex items-center gap-2">
                     <div className="opacity-70 group-hover:opacity-100 transition-opacity">
-                        {getIcon(name)}
+                        {getResourceIcon(name)}
                     </div>
                     <span className="text-xs text-gray-300 font-medium tracking-tight shadow-black drop-shadow-md">{name}</span>
                 </div>

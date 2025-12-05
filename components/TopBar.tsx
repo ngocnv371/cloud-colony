@@ -2,20 +2,7 @@
 import React from 'react';
 import { Pawn } from '../types';
 import { useGame } from '../store/gameStore';
-import { UserRound, Hammer, Utensils, Moon, Footprints, Skull, Box } from 'lucide-react';
-  
-const getPawnIcon = (pawn: Pawn) => {
-  if (pawn.status === 'Dead') return <Skull size={16} className="text-gray-500" />;
-  
-  switch(pawn.currentJob?.type) {
-      case 'WORK': return <Hammer size={14} className="text-yellow-300" />;
-      case 'WITHDRAW': return <Box size={14} className="text-blue-300" />;
-      case 'SLEEP': return <Moon size={14} className="text-purple-300" />;
-      case 'EAT': return <Utensils size={14} className="text-green-300" />;
-      case 'MOVE': return <Footprints size={14} className="text-white/80" />;
-      default: return <UserRound size={16} className="text-white" />;
-  }
-};
+import { getPawnIcon } from '../utils/iconUtils';
 
 interface TopBarProps {
   onSelectPawn: (pawn: Pawn) => void;
@@ -58,7 +45,7 @@ const TopBar: React.FC<TopBarProps> = ({ onSelectPawn }) => {
             </div>
 
             <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-1 ${pawn.color} shadow-sm border border-black/20`}>
-                {getPawnIcon(pawn)}
+                {getPawnIcon(pawn, 16)}
             </div>
 
             <span className="text-[10px] font-bold text-gray-200 truncate max-w-[56px] leading-tight">
