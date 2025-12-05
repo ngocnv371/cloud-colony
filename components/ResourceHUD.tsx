@@ -1,13 +1,12 @@
+
 import React, { useMemo } from 'react';
-import { Structure, Pawn } from '../types';
+import { useGame } from '../store/gameStore';
 import { Box, Wheat, Hammer, Mountain, Coins, Drumstick, Database } from 'lucide-react';
 
-interface ResourceHUDProps {
-  structures: Structure[];
-  pawns: Pawn[];
-}
+const ResourceHUD: React.FC = () => {
+  const { state } = useGame();
+  const { structures, pawns } = state;
 
-const ResourceHUD: React.FC<ResourceHUDProps> = ({ structures, pawns }) => {
   const resources = useMemo(() => {
     const counts: Record<string, number> = {};
 

@@ -1,12 +1,10 @@
 
 import React, { useEffect, useRef } from 'react';
-import { LogEntry } from '../types';
+import { useGame } from '../store/gameStore';
 
-interface LogPanelProps {
-    logs: LogEntry[];
-}
-
-const LogPanel: React.FC<LogPanelProps> = ({ logs }) => {
+const LogPanel: React.FC = () => {
+    const { state } = useGame();
+    const { logs } = state;
     const bottomRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {

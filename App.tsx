@@ -1,175 +1,57 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import GameMap from './components/GameMap';
 import Sidebar from './components/Sidebar';
 import LogPanel from './components/LogPanel';
 import ResourceHUD from './components/ResourceHUD';
 import TopBar from './components/TopBar';
-import { Pawn, Structure, StructureDefinition, Job, MAP_SIZE, TICK_RATE_MS, LogEntry, SkillType } from './types';
-import { STRUCTURES, INITIAL_PAWNS, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID, NATURAL_SPAWN_CHANCE, JOY_DURATION_TICKS } from './constants';
+import { useGame } from './store/gameStore';
 import { generateRandomPawn } from './services/geminiService';
-
-// Logic Modules
-import { generateInitialStructures, findBatchTargets } from './utils/mapUtils';
-import { assignJobToPawn, processPawns } from './systems/pawnLogic';
-import { processStructures } from './systems/structureLogic';
+import { STRUCTURES, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID, TICK_RATE_MS, MAP_SIZE } from './constants';
+import { Structure, SkillType, Pawn, Job } from './types';
 
 const App: React.FC = () => {
-  // --- State ---
-  const [pawns, setPawns] = useState<Pawn[]>(() => 
-    INITIAL_PAWNS.map((p, i) => ({
-      id: `pawn-${i}`,
-      ...p,
-      x: 12 + i, // Start near center
-      y: 12,
-      inventory: [],
-      maxWeight: 35,
-      currentJob: null,
-      jobQueue: [],
-      status: 'Idle',
-      needs: { food: 100, sleep: 100, recreation: 100 },
-      effects: [
-          {
-              type: 'JOY',
-              label: 'Joy',
-              duration: JOY_DURATION_TICKS,
-              isPositive: true
-          }
-      ],
-      starvationTimer: 0,
-      movementBuffer: 0
-    })) as Pawn[]
-  );
-
-  const [structures, setStructures] = useState<Structure[]>(() => generateInitialStructures());
+  const { state, dispatch } = useGame();
   
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [globalJobQueue, setGlobalJobQueue] = useState<Job[]>([]);
-
-  // Interaction State
-  const [selectedPawnId, setSelectedPawnId] = useState<string | null>(null);
-  const [selectedStructureId, setSelectedStructureId] = useState<string | null>(null);
-  const [buildMode, setBuildMode] = useState<StructureDefinition | null>(null);
-  const [commandMode, setCommandMode] = useState<'HARVEST' | 'CHOP' | 'MINE' | null>(null);
+  // Mouse Interaction State (Transient, keeps performance high)
   const [hoverPos, setHoverPos] = useState<{x: number, y: number} | null>(null);
-  const [isGeneratingPawn, setIsGeneratingPawn] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<{x: number, y: number} | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   
-  // Refs
-  const stateRef = useRef({ pawns, structures, logs, globalJobQueue });
   const mapContainerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    stateRef.current = { pawns, structures, logs, globalJobQueue };
-  }, [pawns, structures, logs, globalJobQueue]);
-
-  // Derived state for visual feedback on map
+  // --- Derived State ---
   const queuedTargets = useMemo(() => {
     const targets = new Map<string, string>();
-    // Global Queue
-    globalJobQueue.forEach(j => {
+    state.globalJobQueue.forEach(j => {
         if(j.targetStructureId) targets.set(j.targetStructureId, j.activityId || j.type);
     });
-    // Pawns
-    pawns.forEach(p => {
+    state.pawns.forEach(p => {
         if(p.currentJob?.targetStructureId) targets.set(p.currentJob.targetStructureId, p.currentJob.activityId || p.currentJob.type);
         p.jobQueue.forEach(j => {
              if(j.targetStructureId) targets.set(j.targetStructureId, j.activityId || j.type);
         });
     });
     return targets;
-  }, [globalJobQueue, pawns]);
-
-  const addLog = (message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
-      const newLog: LogEntry = {
-          id: `log-${Date.now()}-${Math.random()}`,
-          timestamp: Date.now(),
-          message,
-          type
-      };
-      setLogs(prev => [...prev.slice(-49), newLog]); // Keep last 50
-  };
-
-  const addLogs = (newLogs: { message: string, type: 'info' | 'success' | 'warning' | 'error' }[]) => {
-      if (newLogs.length === 0) return;
-      const entries: LogEntry[] = newLogs.map(l => ({
-          id: `log-${Date.now()}-${Math.random()}`,
-          timestamp: Date.now(),
-          message: l.message,
-          type: l.type
-      }));
-      setLogs(prev => [...prev.slice(-(50 - entries.length)), ...entries]);
-  };
-
-  // --- Helpers ---
-  const spawnNaturalResources = (currentStructures: Structure[]) => {
-      if (Math.random() < NATURAL_SPAWN_CHANCE) {
-          const type = Math.random() > 0.6 ? 'TREE' : 'BERRY_BUSH'; // 40% Tree, 60% Bush
-          const x = Math.floor(Math.random() * MAP_SIZE);
-          const y = Math.floor(Math.random() * MAP_SIZE);
-
-          // Check if occupied
-          const occupied = currentStructures.some(s => s.x === x && s.y === y);
-          if (!occupied) {
-              const newStruct: Structure = {
-                  id: `${type.toLowerCase()}-${Date.now()}-${Math.random()}`,
-                  type,
-                  x,
-                  y,
-                  inventory: [],
-                  growth: 0 // Start as a sapling
-              };
-              return [...currentStructures, newStruct];
-          }
-      }
-      return currentStructures;
-  };
+  }, [state.globalJobQueue, state.pawns]);
 
   // --- Game Loop ---
   useEffect(() => {
     const interval = setInterval(() => {
-        tick();
+        dispatch({ type: 'TICK' });
     }, TICK_RATE_MS);
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [dispatch]);
 
-  const tick = () => {
-    const { pawns: currentPawns, structures: currentStructures, globalJobQueue: currentQueue } = stateRef.current;
-    
-    // 0. Natural Spawning
-    const structuresAfterSpawn = spawnNaturalResources(currentStructures);
-
-    // 1. Process Pawns (Movement, Needs, Idle Job Assignment, Personal Queue)
-    const { nextPawns: intermediatePawns, nextQueue: queueAfterPawns, logs: pawnLogs } = processPawns(currentPawns, structuresAfterSpawn, currentQueue);
-    
-    // 2. Process Structures (Crop/Natural Growth, Activities, Withdraw Interactions)
-    // Note: This step also processes pawn work progress and returns the final state of pawns for this tick
-    const { nextStructures, nextPawns: finalPawns, logs: structureLogs } = processStructures(structuresAfterSpawn, intermediatePawns);
-
-    // Sync state
-    if (JSON.stringify(currentQueue) !== JSON.stringify(queueAfterPawns)) {
-        setGlobalJobQueue(queueAfterPawns);
-    }
-    
-    setPawns(finalPawns);
-    setStructures(nextStructures);
-    addLogs([...pawnLogs, ...structureLogs]);
-  };
-
-  // --- Command Helper ---
+  // --- Helpers ---
   const getCommandActivity = (structure: Structure, mode: 'HARVEST' | 'CHOP' | 'MINE'): string | null => {
       const def = STRUCTURES[structure.type];
       if (!def) return null;
       
-      if (mode === 'CHOP' && def.type === 'TREE') {
-          // Allow chopping any tree
-          return 'chop_wood';
-      }
+      if (mode === 'CHOP' && def.type === 'TREE') return 'chop_wood';
       
       if (mode === 'HARVEST') {
           if (def.type === 'BERRY_BUSH') {
-              // Allow harvest if >= 80%
               if (structure.growth !== undefined && structure.growth < 80) return null;
               return 'harvest_berry';
           }
@@ -180,66 +62,20 @@ const App: React.FC = () => {
           const mineAct = def.activities.find(a => a.requiredSkill === SkillType.MINING && a.actionType === 'GATHER');
           if (mineAct) return mineAct.id;
       }
-
       return null;
   };
 
-  // --- Handlers ---
-
-  const buildAt = (x: number, y: number) => {
-      if (!buildMode) return;
-      
-      setStructures(prev => {
-          // Collision check using latest state
-          const collision = prev.find(s => 
-            x >= s.x && x < s.x + STRUCTURES[s.type].width &&
-            y >= s.y && y < s.y + STRUCTURES[s.type].height
-          );
-
-          if (!collision) {
-             const newStruct: Structure = {
-                id: `struct-${Date.now()}-${Math.random()}`,
-                type: buildMode.type,
-                x,
-                y,
-                inventory: [],
-                isBlueprint: true 
-             };
-             
-             // Auto-Queue Job
-             const newJob: Job = {
-                 id: `job-construct-${newStruct.id}`,
-                 type: 'WORK',
-                 targetStructureId: newStruct.id,
-                 activityId: CONSTRUCT_ACTIVITY_ID,
-                 activityRepeats: 1
-             };
-             
-             setGlobalJobQueue(queue => [...queue, newJob]);
-             addLog(`Placed & queued ${buildMode.name}`);
-             
-             return [...prev, newStruct];
-          }
-          return prev;
-      });
-  };
-
   const batchCommand = (x1: number, y1: number, x2: number, y2: number) => {
-      if (!commandMode) return;
+      if (!state.commandMode) return;
       
-      let jobsCreated = 0;
       const newJobs: Job[] = [];
-
-      structures.forEach(s => {
-          // Check if structure is within bounds
+      state.structures.forEach(s => {
           const isInBounds = s.x >= x1 && s.x <= x2 && s.y >= y1 && s.y <= y2;
           if (!isInBounds) return;
 
-          // Check if compatible with command
-          const activityId = getCommandActivity(s, commandMode);
+          const activityId = getCommandActivity(s, state.commandMode!);
           if (activityId) {
-             // Avoid duplicates in queue (simple check)
-             const alreadyQueued = globalJobQueue.some(j => j.targetStructureId === s.id && j.activityId === activityId);
+             const alreadyQueued = state.globalJobQueue.some(j => j.targetStructureId === s.id && j.activityId === activityId);
              const alreadyActive = s.currentActivity?.activityId === activityId;
              
              if (!alreadyQueued && !alreadyActive) {
@@ -250,199 +86,82 @@ const App: React.FC = () => {
                      activityId: activityId,
                      activityRepeats: 1
                  });
-                 jobsCreated++;
              }
           }
       });
 
-      if (jobsCreated > 0) {
-          setGlobalJobQueue(prev => [...prev, ...newJobs]);
-          addLog(`Queued ${jobsCreated} ${commandMode.toLowerCase()} orders`, 'success');
+      if (newJobs.length > 0) {
+          dispatch({ type: 'BATCH_ORDER', jobs: newJobs });
       } else {
-          addLog(`No valid targets found for ${commandMode.toLowerCase()}`, 'warning');
+          dispatch({ type: 'ADD_LOG', message: `No valid targets for ${state.commandMode.toLowerCase()}`, severity: 'warning' });
       }
   };
 
+  // --- Handlers ---
   const handleTileClick = (x: number, y: number) => {
-    // 1. Build Mode
-    if (buildMode) {
-        buildAt(x, y);
+    // 1. Build
+    if (state.buildMode) {
+        dispatch({ type: 'BUILD_STRUCTURE', x, y });
         return;
     }
     
-    // Command mode handled by drag/mouseup usually, but single click works too if dragging didn't happen
-    if (commandMode) {
-        // No-op here, handled by MouseUp/Down logic for drag consistency
-        return;
-    }
+    if (state.commandMode) return;
 
-    // 2. Select Pawn?
-    const clickedPawn = pawns.find(p => p.x === x && p.y === y);
+    // 2. Selection Logic
+    const clickedPawn = state.pawns.find(p => p.x === x && p.y === y);
     if (clickedPawn) {
-        setSelectedPawnId(clickedPawn.id);
-        setSelectedStructureId(null);
+        dispatch({ type: 'SELECT_PAWN', pawnId: clickedPawn.id });
         return;
     }
 
-    // 3. Select Structure?
-    const clickedStructure = structures.find(s => 
+    const clickedStructure = state.structures.find(s => 
         x >= s.x && x < s.x + STRUCTURES[s.type].width &&
         y >= s.y && y < s.y + STRUCTURES[s.type].height
     );
 
     if (clickedStructure) {
-        setSelectedStructureId(clickedStructure.id);
+        dispatch({ type: 'SELECT_STRUCTURE', structureId: clickedStructure.id });
         return;
     }
 
-    // 4. Move Command
-    if (selectedPawnId && !clickedStructure && !clickedPawn) {
-        setPawns(prev => prev.map(p => {
-            if (p.id === selectedPawnId) {
-                if (p.status === 'Dead') return p;
-                addLog(`[${p.name}] Moving to (${x},${y})`);
-                return {
-                    ...p,
-                    currentJob: {
-                        id: `job-${Date.now()}`,
-                        type: 'MOVE',
-                        targetX: x,
-                        targetY: y
-                    },
-                    jobQueue: [], // Clear queue on manual move
-                    status: 'Moving'
-                };
-            }
-            return p;
-        }));
-        setSelectedStructureId(null);
+    // 3. Move Order
+    if (state.selectedPawnId && !clickedStructure && !clickedPawn) {
+        dispatch({ type: 'MOVE_PAWN', pawnId: state.selectedPawnId, x, y });
     } else {
-        setSelectedPawnId(null);
-        setSelectedStructureId(null);
+        // Deselect
+        if (state.selectedPawnId) dispatch({ type: 'SELECT_PAWN', pawnId: null });
+        if (state.selectedStructureId) dispatch({ type: 'SELECT_STRUCTURE', structureId: null });
     }
   };
 
   const handleMouseDown = () => {
-      if (buildMode) {
-          setIsDragging(true);
-      } else if (commandMode && hoverPos) {
+      if (state.buildMode || state.commandMode) {
           setIsDragging(true);
           setDragStart(hoverPos);
       }
   };
   
   const handleMouseUp = () => {
-      if (commandMode && dragStart && hoverPos) {
-          // Determine bounds
+      if (state.commandMode && dragStart && hoverPos) {
           const x1 = Math.min(dragStart.x, hoverPos.x);
           const x2 = Math.max(dragStart.x, hoverPos.x);
           const y1 = Math.min(dragStart.y, hoverPos.y);
           const y2 = Math.max(dragStart.y, hoverPos.y);
-          
           batchCommand(x1, y1, x2, y2);
       }
-      
       setIsDragging(false);
       setDragStart(null);
   };
 
   const handleTileEnter = (x: number, y: number) => {
       setHoverPos({x, y});
-      if (isDragging && buildMode) {
-          buildAt(x, y);
-      }
-  };
-
-  const handleOrderJob = (pawnId: string | null, structureId: string, activityId: string, count: number = 1) => {
-      const startStruct = structures.find(s => s.id === structureId);
-      if (!startStruct) return;
-
-      // Detect if this is a batch-compatible activity
-      const isBatchable = 
-        activityId === CONSTRUCT_ACTIVITY_ID || 
-        activityId === HARVEST_ACTIVITY_ID || 
-        activityId.startsWith('plant_');
-
-      let targets: Structure[] = [startStruct];
-      
-      if (isBatchable) {
-          targets = findBatchTargets(startStruct, activityId, structures);
-      }
-      
-      if (targets.length > 1) {
-          addLog(`Queueing batch order: ${activityId} on ${targets.length} targets`);
-      } else {
-          addLog(`Ordered${pawnId ? ' [Pawn]' : ''}: ${activityId}`);
-      }
-
-      // Generate Work Jobs (Goals)
-      const workJobs: Job[] = targets.map(target => ({
-          id: `job-work-${Date.now()}-${target.id}`,
-          type: 'WORK',
-          targetStructureId: target.id,
-          activityId: activityId,
-          activityRepeats: count
-      }));
-
-      // Distribution
-      let pawnAssigned = false;
-      const pawn = pawns.find(p => p.id === pawnId);
-      
-      if (pawn && pawn.status !== 'Dead' && workJobs.length > 0) {
-          // Try to assign first job to selected pawn
-          const successPawn = assignJobToPawn(pawn, workJobs[0], structures);
-          if (successPawn) {
-              setPawns(prev => prev.map(p => p.id === pawn.id ? successPawn : p));
-              pawnAssigned = true;
-              
-              // Visual Feedback for immediate assignment
-              setStructures(prev => prev.map(s => {
-                  if (s.id === targets[0].id) {
-                      return {
-                          ...s,
-                          currentActivity: {
-                              activityId,
-                              progress: 0,
-                              workerId: pawn.id,
-                              repeatsLeft: count
-                          }
-                      };
-                  }
-                  return s;
-              }));
-          }
-      }
-
-      // Remaining Jobs go to Global Queue
-      const queueJobs = pawnAssigned ? workJobs.slice(1) : workJobs;
-      if (queueJobs.length > 0) {
-          setGlobalJobQueue(prev => [...prev, ...queueJobs]);
-      }
-  };
-  
-  const handlePawnFocus = (pawn: Pawn) => {
-      setSelectedPawnId(pawn.id);
-      setSelectedStructureId(null);
-
-      // Camera Focus Logic
-      if (mapContainerRef.current) {
-          const TILE_SIZE = 48; // Must match GameMap
-          const container = mapContainerRef.current;
-          
-          // Center the pawn
-          const targetX = pawn.x * TILE_SIZE;
-          const targetY = pawn.y * TILE_SIZE;
-          
-          container.scrollTo({
-              left: targetX - container.clientWidth / 2 + TILE_SIZE / 2,
-              top: targetY - container.clientHeight / 2 + TILE_SIZE / 2,
-              behavior: 'smooth'
-          });
+      if (isDragging && state.buildMode) {
+          dispatch({ type: 'BUILD_STRUCTURE', x, y });
       }
   };
 
   const handleGeneratePawn = async () => {
-      setIsGeneratingPawn(true);
+      dispatch({ type: 'START_PAWN_GENERATION' });
       try {
         const newPawnData = await generateRandomPawn();
         const newPawn: Pawn = {
@@ -472,61 +191,54 @@ const App: React.FC = () => {
             starvationTimer: 0,
             movementBuffer: 0
         };
-        setPawns(prev => [...prev, newPawn]);
-        addLog(`Recruited ${newPawn.name}: ${newPawn.backstory}`, 'success');
+        dispatch({ type: 'COMPLETE_PAWN_GENERATION', newPawn });
       } catch (e) {
           console.error("Failed to generate pawn", e);
-          addLog("Failed to generate pawn", 'error');
-      } finally {
-          setIsGeneratingPawn(false);
+          dispatch({ type: 'FAIL_PAWN_GENERATION' });
       }
   };
 
-  const selectedPawn = pawns.find(p => p.id === selectedPawnId);
-  const selectedStructure = structures.find(s => s.id === selectedStructureId);
+  // Camera Focus
+  const handleSelectPawn = (pawn: Pawn) => {
+      dispatch({ type: 'SELECT_PAWN', pawnId: pawn.id });
+      if (mapContainerRef.current) {
+          const TILE_SIZE = 48;
+          const container = mapContainerRef.current;
+          const targetX = pawn.x * TILE_SIZE;
+          const targetY = pawn.y * TILE_SIZE;
+          container.scrollTo({
+              left: targetX - container.clientWidth / 2 + TILE_SIZE / 2,
+              top: targetY - container.clientHeight / 2 + TILE_SIZE / 2,
+              behavior: 'smooth'
+          });
+      }
+  };
 
   return (
-    <div className="flex h-screen w-screen bg-black overflow-hidden font-sans"
-         onMouseUp={handleMouseUp} // Global mouse up to catch drags ending outside map
-    >
-        <TopBar 
-            pawns={pawns} 
-            selectedPawnId={selectedPawnId} 
-            onSelectPawn={handlePawnFocus} 
-        />
+    <div className="flex h-screen w-screen bg-black overflow-hidden font-sans" onMouseUp={handleMouseUp}>
+        <TopBar onSelectPawn={handleSelectPawn} />
         
         <GameMap 
             ref={mapContainerRef}
-            structures={structures}
-            pawns={pawns}
+            structures={state.structures}
+            pawns={state.pawns}
             onTileClick={handleTileClick}
             onTileEnter={handleTileEnter}
             onMouseDown={handleMouseDown}
-            selectedPawnId={selectedPawnId}
-            selectedStructureId={selectedStructureId}
-            buildPreview={buildMode}
-            commandMode={commandMode}
+            selectedPawnId={state.selectedPawnId}
+            selectedStructureId={state.selectedStructureId}
+            buildPreview={state.buildMode}
+            commandMode={state.commandMode}
             dragStart={dragStart}
             hoverPos={hoverPos}
             setHoverPos={setHoverPos}
             queuedTargets={queuedTargets}
         />
         
-        <ResourceHUD structures={structures} pawns={pawns} />
+        <ResourceHUD />
         
-        <Sidebar 
-            selectedPawn={selectedPawn}
-            selectedStructure={selectedStructure}
-            onOrderJob={handleOrderJob}
-            buildMode={buildMode}
-            setBuildMode={setBuildMode}
-            commandMode={commandMode}
-            setCommandMode={setCommandMode}
-            pawns={pawns}
-            isGeneratingPawn={isGeneratingPawn}
-            onGeneratePawn={handleGeneratePawn}
-        />
-        <LogPanel logs={logs} />
+        <Sidebar onGeneratePawn={handleGeneratePawn} />
+        <LogPanel />
     </div>
   );
 };

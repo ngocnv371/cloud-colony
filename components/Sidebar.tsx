@@ -1,48 +1,42 @@
 
-
 import React, { useState } from 'react';
-import { Pawn, Structure, StructureDefinition, SkillType, ActivityDefinition } from '../types';
-import { STRUCTURES, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID, getLevelRequirement, EFFECT_DURATION_TICKS } from '../constants';
+import { STRUCTURES } from '../constants';
+import { useGame } from '../store/gameStore';
 import { X, CheckCircle, Activity, Briefcase, Construction, Package, Sprout, Axe, Pickaxe, Scissors, BrickWall, Flame, Utensils, Brain, Hammer, Gamepad2, Swords, Box, Square, Moon, Heart, Skull, Hourglass } from 'lucide-react';
 import PawnDetails from './PawnDetails';
+import { StructureDefinition, SkillType, ActivityDefinition, Structure } from '../types';
+import { CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID } from '../constants';
 
 interface SidebarProps {
-  selectedPawn: Pawn | undefined;
-  selectedStructure: Structure | undefined;
-  onOrderJob: (pawnId: string | null, structureId: string, activityId: string, count: number) => void;
-  buildMode: StructureDefinition | null;
-  setBuildMode: (def: StructureDefinition | null) => void;
-  commandMode: 'HARVEST' | 'CHOP' | 'MINE' | null;
-  setCommandMode: (mode: 'HARVEST' | 'CHOP' | 'MINE' | null) => void;
-  pawns: Pawn[];
-  isGeneratingPawn: boolean;
   onGeneratePawn: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ 
-  selectedPawn, 
-  selectedStructure, 
-  onOrderJob,
-  buildMode,
-  setBuildMode,
-  commandMode,
-  setCommandMode,
-  pawns,
-  isGeneratingPawn,
-  onGeneratePawn
-}) => {
-  
-  const structureDef = selectedStructure ? STRUCTURES[selectedStructure.type] : null;
+const Sidebar: React.FC<SidebarProps> = ({ onGeneratePawn }) => {
+  const { state, dispatch } = useGame();
+  const { selectedPawnId, selectedStructureId, buildMode, commandMode, isGeneratingPawn, pawns, structures } = state;
+
   const [repeatCount, setRepeatCount] = useState<number>(1);
 
+  const selectedPawn = pawns.find(p => p.id === selectedPawnId);
+  const selectedStructure = structures.find(s => s.id === selectedStructureId);
+  const structureDef = selectedStructure ? STRUCTURES[selectedStructure.type] : null;
+
   const handleSetBuildMode = (def: StructureDefinition | null) => {
-      setBuildMode(def);
-      if (def) setCommandMode(null);
+      dispatch({ type: 'SET_BUILD_MODE', def });
   };
 
   const handleSetCommandMode = (mode: 'HARVEST' | 'CHOP' | 'MINE' | null) => {
-      setCommandMode(mode);
-      if (mode) setBuildMode(null);
+      dispatch({ type: 'SET_COMMAND_MODE', mode });
+  };
+
+  const handleOrderJob = (structureId: string, activityId: string, count: number) => {
+      dispatch({ 
+          type: 'ORDER_JOB', 
+          pawnId: selectedPawnId, 
+          structureId, 
+          activityId, 
+          count 
+      });
   };
 
   const getStructureIcon = (def: StructureDefinition) => {
@@ -254,7 +248,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                     {selectedStructure.isBlueprint ? (
                         // Blueprint Construction Action
                          <button
-                            onClick={() => onOrderJob(selectedPawn?.id || null, selectedStructure.id, CONSTRUCT_ACTIVITY_ID, 1)}
+                            onClick={() => handleOrderJob(selectedStructure.id, CONSTRUCT_ACTIVITY_ID, 1)}
                             className={`w-full p-3 rounded text-left flex justify-between items-center group transition-colors border border-dashed
                                 bg-blue-900/40 hover:bg-blue-800 border-blue-500 text-blue-100
                             `}
@@ -271,27 +265,18 @@ const Sidebar: React.FC<SidebarProps> = ({
                         // Standard Activities + Farming/Growth Logic
                         structureDef.activities.length > 0 ? structureDef.activities
                             .filter(act => {
-                                // Farm Logic
                                 if (selectedStructure.type === 'FARM_PLOT') {
                                     const hasCrop = selectedStructure.crop && selectedStructure.crop.planted;
                                     const isMature = selectedStructure.crop && selectedStructure.crop.growth >= 100;
                                     
-                                    if (act.id === HARVEST_ACTIVITY_ID) {
-                                        return hasCrop && isMature;
-                                    }
-                                    if (act.id.startsWith('plant_')) {
-                                        return !hasCrop;
-                                    }
+                                    if (act.id === HARVEST_ACTIVITY_ID) return hasCrop && isMature;
+                                    if (act.id.startsWith('plant_')) return !hasCrop;
                                 }
-                                // Natural Growth Logic (Trees/Bushes)
                                 if (selectedStructure.growth !== undefined) {
                                     if (act.actionType === 'GATHER') {
-                                        // Allow Trees always (or growth > 0 implicit in existence)
-                                        // Allow Berries if >= 80
                                         if (selectedStructure.type === 'BERRY_BUSH' && selectedStructure.growth < 80) return false;
                                     }
                                 }
-
                                 return true;
                             })
                             .map((act) => {
@@ -299,7 +284,6 @@ const Sidebar: React.FC<SidebarProps> = ({
                                 let reason = "";
                                 
                                 if (!selectedPawn) {
-                                    // With global queue, not selecting a pawn is fine, they just get queued
                                     canDo = true;
                                 } else {
                                     const skillLevel = selectedPawn.skills[act.requiredSkill];
@@ -309,7 +293,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                                         reason = "Pawn is dead";
                                     } else if (selectedPawn.status !== 'Idle' && selectedPawn.status !== 'Moving' && selectedPawn.status !== 'Working') {
                                         reason = "Pawn is busy";
-                                        canDo = true; // Still allow override
+                                        canDo = true;
                                     } else {
                                         canDo = true;
                                     }
@@ -319,7 +303,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                                     <button
                                         key={act.id}
                                         disabled={!canDo && !!selectedPawn && selectedPawn.status !== 'Dead'} 
-                                        onClick={() => onOrderJob(selectedPawn?.id || null, selectedStructure.id, act.id, repeatCount)}
+                                        onClick={() => handleOrderJob(selectedStructure.id, act.id, repeatCount)}
                                         className={`w-full p-2 rounded text-left flex justify-between items-center group transition-colors relative mb-1
                                             ${(!canDo && !!selectedPawn)
                                                 ? 'opacity-50 cursor-not-allowed bg-gray-800' 

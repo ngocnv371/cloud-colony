@@ -1,14 +1,16 @@
+
 import React from 'react';
 import { Pawn } from '../types';
+import { useGame } from '../store/gameStore';
 import { UserRound, Hammer, Utensils, Moon, Footprints, Skull, Box } from 'lucide-react';
 
 interface TopBarProps {
-  pawns: Pawn[];
-  selectedPawnId: string | null;
   onSelectPawn: (pawn: Pawn) => void;
 }
 
-const TopBar: React.FC<TopBarProps> = ({ pawns, selectedPawnId, onSelectPawn }) => {
+const TopBar: React.FC<TopBarProps> = ({ onSelectPawn }) => {
+  const { state } = useGame();
+  const { pawns, selectedPawnId } = state;
   
   const getPawnIcon = (pawn: Pawn) => {
     if (pawn.status === 'Dead') return <Skull size={16} className="text-gray-500" />;
@@ -29,7 +31,6 @@ const TopBar: React.FC<TopBarProps> = ({ pawns, selectedPawnId, onSelectPawn }) 
         const isSelected = selectedPawnId === pawn.id;
         const isDead = pawn.status === 'Dead';
         
-        // Calculate health/status color roughly based on needs (simplified)
         const avgMood = (pawn.needs.food + pawn.needs.sleep + pawn.needs.recreation) / 3;
         let moodColor = 'bg-gray-600';
         if (!isDead) {
@@ -51,18 +52,15 @@ const TopBar: React.FC<TopBarProps> = ({ pawns, selectedPawnId, onSelectPawn }) 
               ${isDead ? 'opacity-60 grayscale' : ''}
             `}
           >
-            {/* Mood/Health Indicator Bar */}
             <div className="absolute top-1 right-1 w-2 h-2 rounded-full shadow-sm z-10">
                 <div className={`w-full h-full rounded-full ${moodColor} ${avgMood < 30 && !isDead ? 'animate-ping' : ''}`} />
                 <div className={`absolute inset-0 rounded-full ${moodColor}`} />
             </div>
 
-            {/* Avatar Circle */}
             <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-1 ${pawn.color} shadow-sm border border-black/20`}>
                 {getPawnIcon(pawn)}
             </div>
 
-            {/* Name */}
             <span className="text-[10px] font-bold text-gray-200 truncate max-w-[56px] leading-tight">
                 {pawn.name}
             </span>

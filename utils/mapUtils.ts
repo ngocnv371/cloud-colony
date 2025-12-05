@@ -1,5 +1,6 @@
-import { Structure, MAP_SIZE } from '../types';
-import { CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID } from '../constants';
+
+import { Structure } from '../types';
+import { CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID, MAP_SIZE } from '../constants';
 
 export const generateInitialStructures = (): Structure[] => {
     const initialStructures: Structure[] = [];

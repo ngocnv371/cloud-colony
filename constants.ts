@@ -2,6 +2,9 @@
 
 import { StructureDefinition, SkillType, Pawn } from './types';
 
+export const MAP_SIZE = 25;
+export const TICK_RATE_MS = 250;
+
 export const CONSTRUCT_ACTIVITY_ID = 'construct_structure';
 export const HARVEST_ACTIVITY_ID = 'harvest_crop';
 

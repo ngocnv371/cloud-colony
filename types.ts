@@ -1,5 +1,6 @@
 
 
+
 export enum SkillType {
   CONSTRUCTION = 'Construction',
   COOKING = 'Cooking',
@@ -124,6 +125,3 @@ export interface LogEntry {
     message: string;
     type: 'info' | 'success' | 'warning' | 'error';
 }
-
-export const MAP_SIZE = 25;
-export const TICK_RATE_MS = 250;

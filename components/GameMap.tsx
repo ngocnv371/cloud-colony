@@ -1,6 +1,7 @@
+
 import React, { useMemo, forwardRef } from 'react';
-import { Structure, Pawn, MAP_SIZE, StructureDefinition } from '../types';
-import { STRUCTURES } from '../constants';
+import { Structure, Pawn, StructureDefinition } from '../types';
+import { STRUCTURES, MAP_SIZE } from '../constants';
 import { UserRound, Hammer, Utensils, Zap, Box, Brain, TreeDeciduous, Grape, Sprout, Wheat, Carrot, Mountain, Axe, Pickaxe, Scissors, Gamepad2, Swords, Moon, Footprints, Skull } from 'lucide-react';
 
 interface GameMapProps {
