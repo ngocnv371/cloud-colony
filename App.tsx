@@ -112,9 +112,19 @@ const App: React.FC = () => {
     // 2. Unit Selection
     // If we click a pawn, we usually want to select it.
     const clickedPawn = state.pawns.find(p => p.x === x && p.y === y);
-    if (clickedPawn && !state.selectedPawnId) {
-        dispatch({ type: 'SELECT_PAWN', pawnId: clickedPawn.id });
-        return;
+
+    if (clickedPawn) {
+        // Toggle selection off if clicking the already selected pawn
+        if (state.selectedPawnId === clickedPawn.id) {
+            dispatch({ type: 'SELECT_PAWN', pawnId: null });
+            return;
+        }
+
+        // Select new pawn if nothing is currently selected
+        if (!state.selectedPawnId) {
+            dispatch({ type: 'SELECT_PAWN', pawnId: clickedPawn.id });
+            return;
+        }
     }
 
     // 3. Structure Selection vs Movement
