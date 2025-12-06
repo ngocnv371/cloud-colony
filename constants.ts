@@ -1,6 +1,5 @@
 
-
-import { StructureDefinition, SkillType, Pawn } from './types';
+import { StructureDefinition, SkillType, Pawn, TerrainType } from './types';
 
 export const MAP_SIZE = 25;
 export const TICK_RATE_MS = 250;
@@ -40,32 +39,78 @@ export const FOOD_ITEMS: Record<string, number> = {
     'Rice': 40
 };
 
-// 60 seconds * 4 ticks/sec = 240 ticks
 export const EFFECT_DURATION_TICKS = 240;
-// 120 seconds * 4 ticks/sec = 480 ticks
 export const STARVATION_DEATH_TICKS = 480;
-// 3000 seconds * 4 ticks/sec = 12000 ticks
 export const JOY_DURATION_TICKS = 12000;
 
 export const getLevelRequirement = (level: number) => {
-    // 100 XP base, increases with level. 
-    // At 4 ticks/sec (1 tick = 1 XP), level 0->1 takes 25 seconds.
     return 100 * (level + 1);
 };
 
 export const CROPS = {
-    RICE: { name: 'Rice', growRate: 2.5, yield: 6 }, // Fast, low yield
-    POTATO: { name: 'Potato', growRate: 1.5, yield: 10 }, // Medium
-    CORN: { name: 'Corn', growRate: 0.8, yield: 22 }, // Slow, high yield
+    RICE: { name: 'Rice', growRate: 2.5, yield: 6 },
+    POTATO: { name: 'Potato', growRate: 1.5, yield: 10 },
+    CORN: { name: 'Corn', growRate: 0.8, yield: 22 },
+};
+
+// Terrain Definitions (Layer 0)
+export const TERRAIN_DEFINITIONS: Record<TerrainType, { color: string, speedMult: number, label: string }> = {
+    [TerrainType.SOIL]: { color: 'bg-[#3a4a35]', speedMult: 1.0, label: 'Soil' },
+    [TerrainType.STONE]: { color: 'bg-stone-600', speedMult: 1.0, label: 'Rough Stone' },
+    [TerrainType.WATER_SHALLOW]: { color: 'bg-blue-500/50', speedMult: 0.7, label: 'Shallow Water' },
+    [TerrainType.WATER_DEEP]: { color: 'bg-blue-800', speedMult: 0.2, label: 'Deep Water' },
+    [TerrainType.LAVA]: { color: 'bg-red-600', speedMult: 0.3, label: 'Lava' },
+    [TerrainType.MARSH]: { color: 'bg-emerald-900', speedMult: 0.6, label: 'Marsh' },
 };
 
 export const STRUCTURES: Record<string, StructureDefinition> = {
+  // --- Floors (Layer 1) ---
+  WOOD_FLOOR: {
+      type: 'WOOD_FLOOR',
+      name: 'Wood Floor',
+      width: 1,
+      height: 1,
+      color: 'bg-amber-800/80', // Slightly transparent to blend if needed, or opaque
+      layer: 1,
+      passable: true,
+      walkSpeedMultiplier: 1.1,
+      cost: [{ itemName: 'Wood', amount: 3 }],
+      activities: []
+  },
+  STONE_TILE: {
+      type: 'STONE_TILE',
+      name: 'Stone Tile',
+      width: 1,
+      height: 1,
+      color: 'bg-stone-400',
+      layer: 1,
+      passable: true,
+      walkSpeedMultiplier: 1.1,
+      cost: [{ itemName: 'Stone', amount: 4 }],
+      activities: []
+  },
+  CONCRETE: {
+      type: 'CONCRETE',
+      name: 'Concrete',
+      width: 1,
+      height: 1,
+      color: 'bg-gray-400',
+      layer: 1,
+      passable: true,
+      walkSpeedMultiplier: 1.2,
+      cost: [{ itemName: 'Steel', amount: 1 }],
+      activities: []
+  },
+
+  // --- Structures (Layer 5) ---
   WOOD_WALL: {
     type: 'WOOD_WALL',
     name: 'Wood Wall',
     width: 1,
     height: 1,
     color: 'bg-amber-900',
+    layer: 5,
+    passable: false,
     cost: [{ itemName: 'Wood', amount: 5 }],
     activities: []
   },
@@ -75,6 +120,8 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     width: 1,
     height: 1,
     color: 'bg-stone-500',
+    layer: 5,
+    passable: false,
     cost: [{ itemName: 'Stone', amount: 5 }],
     activities: []
   },
@@ -84,6 +131,8 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     width: 1,
     height: 1,
     color: 'bg-slate-500',
+    layer: 5,
+    passable: false,
     cost: [{ itemName: 'Steel', amount: 5 }],
     activities: []
   },
@@ -93,6 +142,8 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     width: 1,
     height: 1,
     color: 'bg-orange-600',
+    layer: 5,
+    passable: false,
     cost: [{ itemName: 'Wood', amount: 10 }],
     activities: [
       {
@@ -123,6 +174,8 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     width: 2,
     height: 1,
     color: 'bg-red-900',
+    layer: 5,
+    passable: false,
     cost: [{ itemName: 'Wood', amount: 20 }],
     activities: [
       {
@@ -143,6 +196,8 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     width: 2,
     height: 2,
     color: 'bg-blue-800',
+    layer: 5,
+    passable: false,
     cost: [{ itemName: 'Wood', amount: 30 }, { itemName: 'Steel', amount: 10 }],
     activities: [
       {
@@ -162,6 +217,8 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     width: 2,
     height: 1,
     color: 'bg-amber-700',
+    layer: 5,
+    passable: false,
     cost: [{ itemName: 'Wood', amount: 25 }],
     activities: [
       {
@@ -182,6 +239,8 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     width: 1,
     height: 1,
     color: 'bg-neutral-800',
+    layer: 5,
+    passable: false, // Players stand next to it
     cost: [{ itemName: 'Wood', amount: 20 }, { itemName: 'Steel', amount: 5 }],
     activities: [
         {
@@ -201,6 +260,8 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     width: 1,
     height: 1,
     color: 'bg-amber-500',
+    layer: 5,
+    passable: false,
     cost: [{ itemName: 'Wood', amount: 20 }],
     activities: [
         {
@@ -220,6 +281,8 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     width: 1,
     height: 1,
     color: 'bg-amber-950',
+    layer: 5,
+    passable: false,
     cost: [{ itemName: 'Wood', amount: 15 }],
     activities: [
         {
@@ -239,6 +302,8 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
       width: 1,
       height: 1,
       color: 'bg-amber-900', // Earth color
+      layer: 1, // On the ground
+      passable: true,
       cost: [], // Free to place plot
       activities: [
           {
@@ -275,7 +340,7 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
               requiredSkill: SkillType.PLANTS,
               requiredLevel: 0,
               durationTicks: 15,
-              outputs: [] // Dynamic output handled in App.tsx
+              outputs: []
           }
       ]
   },
@@ -286,6 +351,8 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
       height: 1,
       color: 'bg-green-800',
       isNatural: true,
+      layer: 5,
+      passable: true, // Can walk under trees
       cost: [],
       activities: [
           {
@@ -322,6 +389,8 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
       height: 1,
       color: 'bg-green-600',
       isNatural: true,
+      layer: 5,
+      passable: true,
       cost: [],
       activities: [
           {
@@ -351,6 +420,8 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     height: 1,
     color: 'bg-stone-600',
     isNatural: true,
+    layer: 5,
+    passable: false,
     cost: [],
     activities: [
         {
@@ -387,6 +458,8 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     height: 1,
     color: 'bg-slate-700',
     isNatural: true,
+    layer: 5,
+    passable: false,
     cost: [],
     activities: [
         {
@@ -407,6 +480,8 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     height: 1,
     color: 'bg-slate-500',
     isNatural: true,
+    layer: 5,
+    passable: false,
     cost: [],
     activities: [
         {
@@ -427,6 +502,8 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     height: 1,
     color: 'bg-yellow-800',
     isNatural: true,
+    layer: 5,
+    passable: false,
     cost: [],
     activities: [
         {
@@ -447,6 +524,8 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     height: 1,
     color: 'bg-green-900',
     isNatural: true,
+    layer: 5,
+    passable: false,
     cost: [],
     activities: [
         {

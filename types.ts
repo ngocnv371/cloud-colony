@@ -1,6 +1,5 @@
 
 
-
 export enum SkillType {
   CONSTRUCTION = 'Construction',
   COOKING = 'Cooking',
@@ -9,6 +8,15 @@ export enum SkillType {
   SOCIAL = 'Social',
   INTELLECTUAL = 'Intellectual',
   MELEE = 'Melee'
+}
+
+export enum TerrainType {
+  SOIL = 'Soil',
+  STONE = 'Stone',
+  WATER_SHALLOW = 'Shallow Water',
+  WATER_DEEP = 'Deep Water',
+  LAVA = 'Lava',
+  MARSH = 'Marsh'
 }
 
 export interface Skill {
@@ -70,7 +78,12 @@ export interface StructureDefinition {
   color: string;
   cost: { itemName: string; amount: number }[];
   activities: ActivityDefinition[];
-  isNatural?: boolean; // If true, cannot be built by player, spawns naturally
+  isNatural?: boolean;
+  
+  // New Layer Logic
+  layer: number; // 0=Terrain(Internal), 1=Floor, 2=Filth, 5=Structure
+  passable: boolean; // Can pawns walk through this?
+  walkSpeedMultiplier?: number; // 1.0 is default. 1.2 is faster, 0.5 is slower.
 }
 
 export interface ActivityDefinition {

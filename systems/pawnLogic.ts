@@ -1,8 +1,8 @@
 
-
-import { Pawn, Job, Structure, LogEntry, PawnEffect, EffectType } from '../types';
-import { STRUCTURES, CONSTRUCT_ACTIVITY_ID, NEEDS, FOOD_ITEMS, EFFECT_DURATION_TICKS, STARVATION_DEATH_TICKS } from '../constants';
+import { Pawn, Job, Structure, LogEntry, PawnEffect, EffectType, TerrainType } from '../types';
+import { STRUCTURES, CONSTRUCT_ACTIVITY_ID, NEEDS, FOOD_ITEMS, EFFECT_DURATION_TICKS, STARVATION_DEATH_TICKS, TERRAIN_DEFINITIONS, MAP_SIZE } from '../constants';
 import { findSourceForItems } from '../utils/inventoryUtils';
+import { findPath, isPassable } from '../utils/mapUtils';
 
 type LogEvent = Omit<LogEntry, 'id' | 'timestamp'>;
 
@@ -49,7 +49,7 @@ export const assignJobToPawn = (pawn: Pawn, job: Job, allStructures: Structure[]
          });
 
          if (currentLink) {
-             // @ts-ignore - TS sometimes struggles with mutable chaining but this is valid
+             // @ts-ignore
              currentLink.nextJob = job;
              jobChain = firstJob as Job;
          }
@@ -75,13 +75,11 @@ const findFoodSource = (pawn: Pawn, structures: Structure[]): Job | null => {
         };
     }
 
-    // 2. Check Structures (Chests, Bushes, etc)
-    // Priority: Cooked Meals > Raw Food
+    // 2. Check Structures
     let bestSource: { structId: string, itemName: string } | null = null;
     let bestScore = -1;
 
     structures.forEach(s => {
-        // Inventory check
         s.inventory.forEach(item => {
             if (FOOD_ITEMS[item.name]) {
                 const score = item.name.includes('Meal') ? 10 : 1;
@@ -91,7 +89,6 @@ const findFoodSource = (pawn: Pawn, structures: Structure[]): Job | null => {
                 }
             }
         });
-        // Berry Bush direct harvest logic could go here, but for now we rely on picked berries
     });
 
     if (bestSource) {
@@ -120,7 +117,6 @@ const findRecreationJob = (pawn: Pawn, structures: Structure[]): Job | null => {
     });
 
     if (nearbyFun.length > 0) {
-        // Pick random
         const randomStruct = nearbyFun[Math.floor(Math.random() * nearbyFun.length)];
         const def = STRUCTURES[randomStruct.type];
         const recActs = def.activities.filter(a => a.actionType === 'RECREATION');
@@ -139,8 +135,10 @@ const findRecreationJob = (pawn: Pawn, structures: Structure[]): Job | null => {
 
 // --- Effects & Stats ---
 
-const getMoveSpeedMultiplier = (pawn: Pawn): number => {
+const getMoveSpeedMultiplier = (pawn: Pawn, terrain: TerrainType[], structures: Structure[]): number => {
     let multiplier = 1.0;
+    
+    // Effects
     pawn.effects.forEach(e => {
         if (e.type === 'WELL_RESTED') multiplier += 0.1;
         if (e.type === 'JOY') multiplier += 0.1;
@@ -148,14 +146,33 @@ const getMoveSpeedMultiplier = (pawn: Pawn): number => {
         if (e.type === 'TIRED') multiplier -= 0.1;
         if (e.type === 'BORED') multiplier -= 0.1;
     });
-    return Math.max(0.1, multiplier); // Min speed 10%
+
+    // Terrain Penalty/Bonus of CURRENT tile
+    if (pawn.x >= 0 && pawn.x < MAP_SIZE && pawn.y >= 0 && pawn.y < MAP_SIZE) {
+        const idx = pawn.y * MAP_SIZE + pawn.x;
+        const tileType = terrain[idx];
+        const terrainDef = TERRAIN_DEFINITIONS[tileType];
+        if (terrainDef) {
+            multiplier *= terrainDef.speedMult;
+        }
+
+        // Floor Bonus (Structure on Layer 1)
+        const floor = structures.find(s => s.x === pawn.x && s.y === pawn.y && STRUCTURES[s.type].layer === 1);
+        if (floor) {
+             const def = STRUCTURES[floor.type];
+             if (def.walkSpeedMultiplier) multiplier *= def.walkSpeedMultiplier;
+        }
+    }
+
+    return Math.max(0.1, multiplier);
 };
 
 
 export const processPawns = (
     currentPawns: Pawn[], 
     currentStructures: Structure[], 
-    currentQueue: Job[]
+    currentQueue: Job[],
+    currentTerrain: TerrainType[]
 ): { nextPawns: Pawn[], nextQueue: Job[], logs: LogEvent[] } => {
     
     const logs: LogEvent[] = [];
@@ -167,17 +184,15 @@ export const processPawns = (
         let updatedPawn = { 
             ...pawn, 
             needs: { ...pawn.needs },
-            effects: [...(pawn.effects || [])] // Shallow copy effects
+            effects: [...(pawn.effects || [])]
         };
 
-        // --- 1. Effect Processing ---
-        // Decay Duration
+        // --- Effects & Needs Processing (Unchanged logic, just keeping it here) ---
         updatedPawn.effects = updatedPawn.effects.map(e => {
             if (e.duration !== -1) return { ...e, duration: e.duration - 1 };
             return e;
         }).filter(e => e.duration === -1 || e.duration > 0);
 
-        // Conditional Effects Logic
         const hasEffect = (t: EffectType) => updatedPawn.effects.some(e => e.type === t);
         const addEffect = (e: PawnEffect) => {
             if (!hasEffect(e.type)) updatedPawn.effects.push(e);
@@ -186,28 +201,15 @@ export const processPawns = (
             updatedPawn.effects = updatedPawn.effects.filter(e => e.type !== t);
         };
 
-        // Hungry
-        if (updatedPawn.needs.food < NEEDS.CRITICAL.FOOD) {
-            addEffect({ type: 'HUNGRY', label: 'Hungry', duration: -1, isPositive: false });
-        } else {
-            removeEffect('HUNGRY');
-        }
+        if (updatedPawn.needs.food < NEEDS.CRITICAL.FOOD) addEffect({ type: 'HUNGRY', label: 'Hungry', duration: -1, isPositive: false });
+        else removeEffect('HUNGRY');
 
-        // Tired
-        if (updatedPawn.needs.sleep < NEEDS.CRITICAL.SLEEP) {
-            addEffect({ type: 'TIRED', label: 'Tired', duration: -1, isPositive: false });
-        } else {
-            removeEffect('TIRED');
-        }
+        if (updatedPawn.needs.sleep < NEEDS.CRITICAL.SLEEP) addEffect({ type: 'TIRED', label: 'Tired', duration: -1, isPositive: false });
+        else removeEffect('TIRED');
 
-        // Bored
-        if (updatedPawn.needs.recreation < NEEDS.CRITICAL.RECREATION) {
-            addEffect({ type: 'BORED', label: 'Bored', duration: -1, isPositive: false });
-        } else {
-            removeEffect('BORED');
-        }
+        if (updatedPawn.needs.recreation < NEEDS.CRITICAL.RECREATION) addEffect({ type: 'BORED', label: 'Bored', duration: -1, isPositive: false });
+        else removeEffect('BORED');
 
-        // --- 2. Starvation Death Logic ---
         if (hasEffect('HUNGRY')) {
             updatedPawn.starvationTimer = (updatedPawn.starvationTimer || 0) + 1;
             if (updatedPawn.starvationTimer > STARVATION_DEATH_TICKS) {
@@ -216,30 +218,22 @@ export const processPawns = (
                 updatedPawn.currentJob = null;
                 updatedPawn.jobQueue = [];
                 updatedPawn.effects = [];
-                return updatedPawn; // Stop processing
+                return updatedPawn;
             }
         } else {
             updatedPawn.starvationTimer = 0;
         }
 
-
-        // --- 3. Needs Decay ---
         updatedPawn.needs.food = Math.max(0, updatedPawn.needs.food - NEEDS.DECAY.FOOD);
         updatedPawn.needs.sleep = Math.max(0, updatedPawn.needs.sleep - NEEDS.DECAY.SLEEP);
         updatedPawn.needs.recreation = Math.max(0, updatedPawn.needs.recreation - NEEDS.DECAY.RECREATION);
 
-        // --- 4. Critical Interruption Logic ---
-        
-        // Sleep Critical (< 10)
         if (updatedPawn.needs.sleep < NEEDS.CRITICAL.SLEEP && (updatedPawn.currentJob?.type as string) !== 'SLEEP') {
             logs.push({ message: `[${pawn.name}] collapsed from exhaustion!`, type: 'warning' });
             updatedPawn.jobQueue = [];
             updatedPawn.currentJob = { id: `sleep-emergency-${Date.now()}`, type: 'SLEEP' };
             updatedPawn.status = 'Sleeping (Floor)';
-        }
-        
-        // Food Critical (< 15)
-        else if (updatedPawn.needs.food < NEEDS.CRITICAL.FOOD && updatedPawn.currentJob?.type !== 'EAT' && updatedPawn.currentJob?.nextJob?.type !== 'EAT') {
+        } else if (updatedPawn.needs.food < NEEDS.CRITICAL.FOOD && updatedPawn.currentJob?.type !== 'EAT' && updatedPawn.currentJob?.nextJob?.type !== 'EAT') {
              if ((updatedPawn.currentJob?.type as string) !== 'SLEEP') {
                  const foodJob = findFoodSource(updatedPawn, currentStructures);
                  if (foodJob) {
@@ -248,26 +242,17 @@ export const processPawns = (
                      updatedPawn.currentJob = foodJob;
                  }
              }
-        }
-
-        // Recreation Critical (< 20)
-        else if (updatedPawn.needs.recreation < NEEDS.CRITICAL.RECREATION && !updatedPawn.currentJob) {
+        } else if (updatedPawn.needs.recreation < NEEDS.CRITICAL.RECREATION && !updatedPawn.currentJob) {
              const funJob = findRecreationJob(updatedPawn, currentStructures);
-             if (funJob) {
-                 logs.push({ message: `[${pawn.name}] needs recreation desperately.`, type: 'info' });
-                 updatedPawn.currentJob = funJob;
-             }
+             if (funJob) updatedPawn.currentJob = funJob;
         }
 
         return updatedPawn;
     });
 
-    // --- Standard Job Processing ---
-    
-    // 1. Idle Pawns Check Global Queue
+    // 1. Assign Jobs to Idle Pawns
     nextPawns = nextPawns.map(pawn => {
         if (pawn.status === 'Dead') return pawn;
-
         if (!pawn.currentJob && pawn.jobQueue.length === 0 && nextQueue.length > 0 && pawn.needs.sleep > NEEDS.CRITICAL.SLEEP) {
             for (let i = 0; i < nextQueue.length; i++) {
                 const jobCandidate = nextQueue[i];
@@ -281,7 +266,7 @@ export const processPawns = (
         return pawn;
     });
 
-    // 2. Idle Boredom Check
+    // 2. Boredom Check
     nextPawns = nextPawns.map(pawn => {
         if (pawn.status === 'Dead') return pawn;
         if (!pawn.currentJob && pawn.jobQueue.length === 0 && nextQueue.length === 0 && pawn.status === 'Idle') {
@@ -289,7 +274,6 @@ export const processPawns = (
             if (Math.random() < recChance) {
                 const funJob = findRecreationJob(pawn, currentStructures);
                 if (funJob) {
-                     logs.push({ message: `[${pawn.name}] decided to relax.`, type: 'info' });
                      const updatedPawn = assignJobToPawn(pawn, funJob, currentStructures);
                      if (updatedPawn) return updatedPawn;
                 }
@@ -298,13 +282,12 @@ export const processPawns = (
         return pawn;
     });
 
-    // 3. Process Pawn Actions
+    // 3. Process Actions
     nextPawns = nextPawns.map(pawn => {
         if (pawn.status === 'Dead') return pawn;
 
         let nextPawn = { ...pawn };
 
-        // Queue Advancement
         if (!nextPawn.currentJob && nextPawn.jobQueue.length > 0) {
             const nextJob = nextPawn.jobQueue[0];
             return {
@@ -319,19 +302,11 @@ export const processPawns = (
 
         const job = nextPawn.currentJob;
 
-        // --- JOB TYPES ---
-
         if (job.type === 'SLEEP') {
             nextPawn.status = 'Sleeping';
             nextPawn.needs.sleep = Math.min(100, nextPawn.needs.sleep + NEEDS.REPLENISH.SLEEP);
             if (nextPawn.needs.sleep >= 100) {
-                // WELL RESTED BONUS
-                nextPawn.effects.push({
-                    type: 'WELL_RESTED',
-                    label: 'Well Rested',
-                    duration: EFFECT_DURATION_TICKS,
-                    isPositive: true
-                });
+                nextPawn.effects.push({ type: 'WELL_RESTED', label: 'Well Rested', duration: EFFECT_DURATION_TICKS, isPositive: true });
                 logs.push({ message: `[${nextPawn.name}] woke up fully rested.`, type: 'info' });
                 nextPawn.currentJob = null;
                 nextPawn.status = 'Idle';
@@ -346,24 +321,14 @@ export const processPawns = (
                 const idx = nextPawn.inventory.findIndex(i => i.name === foodName);
                 if (idx !== -1) {
                     const nutrition = FOOD_ITEMS[foodName] || 50;
-                    
-                    // Consume
                     nextPawn.inventory[idx].quantity -= 1;
                     if (nextPawn.inventory[idx].quantity <= 0) nextPawn.inventory.splice(idx, 1);
-                    
                     nextPawn.needs.food = Math.min(100, nextPawn.needs.food + nutrition);
                     logs.push({ message: `[${nextPawn.name}] ate ${foodName}.`, type: 'success' });
                     
-                    // SATED BONUS (Only cooked meals, only if full)
                     if (nextPawn.needs.food >= 100 && (foodName === 'Simple Meal' || foodName === 'Fine Meal')) {
-                         nextPawn.effects.push({
-                            type: 'SATED',
-                            label: 'Sated',
-                            duration: EFFECT_DURATION_TICKS,
-                            isPositive: true
-                        });
+                         nextPawn.effects.push({ type: 'SATED', label: 'Sated', duration: EFFECT_DURATION_TICKS, isPositive: true });
                     }
-
                     nextPawn.currentJob = null;
                     nextPawn.status = 'Idle';
                 } else {
@@ -374,34 +339,56 @@ export const processPawns = (
             return nextPawn;
         }
 
-        // --- MOVEMENT LOGIC with Buffering ---
+        // --- MOVEMENT LOGIC (Pathfinding) ---
         const moveOneStep = (destX: number, destY: number): boolean => {
-            const speedMult = getMoveSpeedMultiplier(nextPawn);
-            // Accumulate movement based on multiplier. Base speed 1.0/tick * multiplier.
+            const speedMult = getMoveSpeedMultiplier(nextPawn, currentTerrain, currentStructures);
             nextPawn.movementBuffer = (nextPawn.movementBuffer || 0) + (1.0 * speedMult);
 
-            // While buffer >= 1, take steps. This allows >1 tile per tick for very fast pawns,
-            // or accumulating over multiple ticks for slow pawns.
             let hasMoved = false;
             let arrived = false;
-            
+
+            // Only move if buffer is full enough
             while (nextPawn.movementBuffer >= 1.0) {
-                const dx = destX - nextPawn.x;
-                const dy = destY - nextPawn.y;
-                
-                if (dx === 0 && dy === 0) {
+                // If we are already there
+                if (nextPawn.x === destX && nextPawn.y === destY) {
                     arrived = true;
                     break;
                 }
-
-                if (dx !== 0) nextPawn.x += Math.sign(dx);
-                else if (dy !== 0) nextPawn.y += Math.sign(dy);
                 
-                nextPawn.movementBuffer -= 1.0;
-                hasMoved = true;
+                // PATHFINDING
+                // Find path from Current -> Dest
+                let path = findPath(
+                    { x: nextPawn.x, y: nextPawn.y }, 
+                    { x: destX, y: destY }, 
+                    currentStructures, 
+                    currentTerrain
+                );
+
+                // Fallback: If pathfinding fails but we need to move, try straight line since passability is permissive for now
+                if (!path && (Math.abs(nextPawn.x - destX) + Math.abs(nextPawn.y - destY) > 0)) {
+                    const dx = Math.sign(destX - nextPawn.x);
+                    const dy = Math.sign(destY - nextPawn.y);
+                    // Try X then Y
+                    if (dx !== 0 && isPassable(nextPawn.x + dx, nextPawn.y, currentStructures, currentTerrain)) {
+                        path = [{x: nextPawn.x, y: nextPawn.y}, {x: nextPawn.x + dx, y: nextPawn.y}];
+                    } else if (dy !== 0 && isPassable(nextPawn.x, nextPawn.y + dy, currentStructures, currentTerrain)) {
+                         path = [{x: nextPawn.x, y: nextPawn.y}, {x: nextPawn.x, y: nextPawn.y + dy}];
+                    }
+                }
+
+                if (path && path.length > 1) { // Path MUST contain at least [start, nextStep]
+                    const nextStep = path[1]; // Get the next step, not the current one
+                    nextPawn.x = nextStep.x;
+                    nextPawn.y = nextStep.y;
+                    hasMoved = true;
+                    nextPawn.movementBuffer -= 1.0;
+                } else {
+                    // Blocked entirely
+                    nextPawn.movementBuffer = 0; 
+                    break; 
+                }
             }
             
-            // Check arrival again in case we arrived exactly
             if (destX === nextPawn.x && destY === nextPawn.y) return true;
             return arrived;
         };
@@ -423,28 +410,21 @@ export const processPawns = (
         } else if (job.type === 'WITHDRAW') {
              const targetStructure = currentStructures.find(s => s.id === job.targetStructureId);
              if (!targetStructure) {
-                 logs.push({ message: `[${pawn.name}] Job Failed: Target structure missing`, type: 'error' });
                  nextPawn.currentJob = null;
-                 nextPawn.status = 'Idle';
                  return nextPawn;
              }
              
-             // Check distance (Chebyshev)
              const dist = Math.max(Math.abs(targetStructure.x - nextPawn.x), Math.abs(targetStructure.y - nextPawn.y));
-
              if (dist > 1) { 
                 nextPawn.status = 'Fetching Items';
                 moveOneStep(targetStructure.x, targetStructure.y);
              } else {
-                 if (job.itemsToHandle) {
-                     nextPawn.status = 'Withdrawing';
-                 }
+                 if (job.itemsToHandle) nextPawn.status = 'Withdrawing';
              }
         } else if (job.type === 'WORK') {
             const targetStructure = currentStructures.find(s => s.id === job.targetStructureId);
             if (!targetStructure) {
                 nextPawn.currentJob = null;
-                nextPawn.status = 'Idle';
                 return nextPawn;
             }
 

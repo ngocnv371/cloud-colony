@@ -5,6 +5,7 @@ import Sidebar from './components/Sidebar';
 import LogPanel from './components/LogPanel';
 import ResourceHUD from './components/ResourceHUD';
 import TopBar from './components/TopBar';
+import TerrainHUD from './components/TerrainHUD';
 import { useGame } from './store/gameStore';
 import { generateRandomPawn } from './services/geminiService';
 import { STRUCTURES, CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID, TICK_RATE_MS, MAP_SIZE } from './constants';
@@ -44,7 +45,7 @@ const App: React.FC = () => {
   }, [dispatch]);
 
   // --- Helpers ---
-  const getCommandActivity = (structure: Structure, mode: 'HARVEST' | 'CHOP' | 'MINE'): string | null => {
+  const getCommandActivity = (structure: Structure, mode: 'HARVEST' | 'CHOP' | 'MINE' | null): string | null => {
       const def = STRUCTURES[structure.type];
       if (!def) return null;
       
@@ -99,38 +100,61 @@ const App: React.FC = () => {
 
   // --- Handlers ---
   const handleTileClick = (x: number, y: number) => {
-    // 1. Build
+    // 1. Build Mode
     if (state.buildMode) {
         dispatch({ type: 'BUILD_STRUCTURE', x, y });
         return;
     }
     
+    // Command Mode is handled by Drag, but single click logic could be here if needed
     if (state.commandMode) return;
 
-    // 2. Selection Logic
+    // 2. Unit Selection
+    // If we click a pawn, we usually want to select it.
     const clickedPawn = state.pawns.find(p => p.x === x && p.y === y);
-    if (clickedPawn) {
+    if (clickedPawn && !state.selectedPawnId) {
         dispatch({ type: 'SELECT_PAWN', pawnId: clickedPawn.id });
         return;
     }
 
-    const clickedStructure = state.structures.find(s => 
+    // 3. Structure Selection vs Movement
+    const structuresAtTile = state.structures.filter(s => 
         x >= s.x && x < s.x + STRUCTURES[s.type].width &&
         y >= s.y && y < s.y + STRUCTURES[s.type].height
     );
 
-    if (clickedStructure) {
-        dispatch({ type: 'SELECT_STRUCTURE', structureId: clickedStructure.id });
-        return;
-    }
+    // Sort by Layer (Higher layer on top) so we prioritize visibility
+    structuresAtTile.sort((a, b) => {
+        const layerA = STRUCTURES[a.type]?.layer || 0;
+        const layerB = STRUCTURES[b.type]?.layer || 0;
+        return layerB - layerA; // Descending
+    });
 
-    // 3. Move Order
-    if (state.selectedPawnId && !clickedStructure && !clickedPawn) {
-        dispatch({ type: 'MOVE_PAWN', pawnId: state.selectedPawnId, x, y });
+    if (state.selectedPawnId) {
+        // MOVEMENT LOGIC
+        // If a pawn is selected, we only select the structure if it is IMPASSABLE (e.g., Wall, Boulder).
+        // If the structure is passable (Tree, Floor, etc.), we ignore selection and issue a MOVE command.
+        
+        // Find if there is any impassable structure here
+        const impassableStructure = structuresAtTile.find(s => STRUCTURES[s.type]?.passable === false);
+
+        if (impassableStructure) {
+            // Clicked on a wall/boulder -> Select it (cannot walk there)
+            dispatch({ type: 'SELECT_STRUCTURE', structureId: impassableStructure.id });
+        } else {
+            // Clicked on empty ground or passable structure -> Move there
+            dispatch({ type: 'MOVE_PAWN', pawnId: state.selectedPawnId, x, y });
+        }
     } else {
-        // Deselect
-        if (state.selectedPawnId) dispatch({ type: 'SELECT_PAWN', pawnId: null });
-        if (state.selectedStructureId) dispatch({ type: 'SELECT_STRUCTURE', structureId: null });
+        // Selection Logic (No pawn selected)
+        // Select the top-most structure
+        if (structuresAtTile.length > 0) {
+            dispatch({ type: 'SELECT_STRUCTURE', structureId: structuresAtTile[0].id });
+        } else {
+            // Deselect everything if clicking empty void
+            dispatch({ type: 'SELECT_STRUCTURE', structureId: null });
+            dispatch({ type: 'SELECT_PAWN', pawnId: null });
+        }
     }
   };
 
@@ -239,6 +263,7 @@ const App: React.FC = () => {
         
         <Sidebar onGeneratePawn={handleGeneratePawn} />
         <LogPanel />
+        <TerrainHUD hoverPos={hoverPos} terrain={state.terrain} structures={state.structures} />
     </div>
   );
 };

@@ -1,15 +1,15 @@
 
 
-
 import React, { createContext, useContext, useReducer, ReactNode, Dispatch } from 'react';
-import { Pawn, Structure, Job, LogEntry, StructureDefinition, SkillType } from '../types';
+import { Pawn, Structure, Job, LogEntry, StructureDefinition, SkillType, TerrainType } from '../types';
 import { INITIAL_PAWNS, JOY_DURATION_TICKS, CONSTRUCT_ACTIVITY_ID, STRUCTURES, NATURAL_SPAWN_CHANCE, MAP_SIZE } from '../constants';
-import { generateInitialStructures, findBatchTargets } from '../utils/mapUtils';
+import { generateInitialStructures, findBatchTargets, generateTerrain } from '../utils/mapUtils';
 import { processPawns, assignJobToPawn } from '../systems/pawnLogic';
 import { processStructures } from '../systems/structureLogic';
 
 // --- State Definition ---
 export interface GameState {
+  terrain: TerrainType[];
   pawns: Pawn[];
   structures: Structure[];
   globalJobQueue: Job[];
@@ -40,7 +40,11 @@ export type GameAction =
   | { type: 'FAIL_PAWN_GENERATION' };
 
 // --- Initial State ---
+const initialTerrain = generateTerrain();
+const initialStructures = generateInitialStructures(initialTerrain);
+
 const initialState: GameState = {
+  terrain: initialTerrain,
   pawns: INITIAL_PAWNS.map((p, i) => ({
     id: `pawn-${i}`,
     ...p,
@@ -56,7 +60,7 @@ const initialState: GameState = {
     starvationTimer: 0,
     movementBuffer: 0
   })) as Pawn[],
-  structures: generateInitialStructures(),
+  structures: initialStructures,
   globalJobQueue: [],
   logs: [],
   selectedPawnId: null,
@@ -84,9 +88,15 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           const type = Math.random() > 0.6 ? 'TREE' : 'BERRY_BUSH';
           const x = Math.floor(Math.random() * MAP_SIZE);
           const y = Math.floor(Math.random() * MAP_SIZE);
-          const occupied = state.structures.some(s => s.x === x && s.y === y);
           
-          if (!occupied) {
+          // Check for collision on same layer
+          // We only spawn natural stuff on layer 5 (Objects)
+          const layer = 5; 
+          const occupied = state.structures.some(s => s.x === x && s.y === y && STRUCTURES[s.type].layer === layer);
+          const terrainType = state.terrain[y * MAP_SIZE + x];
+          const isWater = terrainType === TerrainType.WATER_DEEP || terrainType === TerrainType.WATER_SHALLOW || terrainType === TerrainType.LAVA;
+
+          if (!occupied && !isWater) {
               const newStruct: Structure = {
                   id: `${type.toLowerCase()}-${Date.now()}-${Math.random()}`,
                   type,
@@ -99,8 +109,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           }
       }
 
-      // 1. Process Pawns
-      const { nextPawns: intermediatePawns, nextQueue: queueAfterPawns, logs: pawnLogs } = processPawns(state.pawns, structuresAfterSpawn, state.globalJobQueue);
+      // 1. Process Pawns (Pass Terrain!)
+      const { nextPawns: intermediatePawns, nextQueue: queueAfterPawns, logs: pawnLogs } = processPawns(state.pawns, structuresAfterSpawn, state.globalJobQueue, state.terrain);
       
       // 2. Process Structures
       const { nextStructures, nextPawns: finalPawns, logs: structureLogs } = processStructures(structuresAfterSpawn, intermediatePawns);
@@ -150,13 +160,20 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'BUILD_STRUCTURE': {
         if (!state.buildMode) return state;
         
-        // Collision Check
+        // Layer Collision Check
+        // Can only build if no structure on same layer
+        const targetLayer = state.buildMode.layer;
+        
         const collision = state.structures.find(s => 
-            action.x >= s.x && action.x < s.x + STRUCTURES[s.type].width &&
-            action.y >= s.y && action.y < s.y + STRUCTURES[s.type].height
+            s.x === action.x && s.y === action.y &&
+            STRUCTURES[s.type].layer === targetLayer
         );
+        
+        // Also check terrain (Cannot build on Deep Water or Lava)
+        const t = state.terrain[action.y * MAP_SIZE + action.x];
+        const invalidTerrain = t === TerrainType.WATER_DEEP || t === TerrainType.LAVA;
 
-        if (collision) return state;
+        if (collision || invalidTerrain) return state;
 
         const newStruct: Structure = {
             id: `struct-${Date.now()}-${Math.random()}`,
@@ -222,7 +239,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
                      pawnAssigned = true;
                      logMessage += ` (assigned to ${assignedPawn.name})`;
 
-                     // Visual feedback for immediate assignment
+                     // Visual feedback
                      const structIdx = newStructures.findIndex(s => s.id === targets[0].id);
                      if (structIdx !== -1) {
                         newStructures[structIdx] = {

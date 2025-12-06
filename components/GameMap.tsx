@@ -1,9 +1,11 @@
 
+
 import React, { forwardRef } from 'react';
 import { Structure, Pawn, StructureDefinition } from '../types';
-import { STRUCTURES, MAP_SIZE } from '../constants';
+import { STRUCTURES, MAP_SIZE, TERRAIN_DEFINITIONS } from '../constants';
 import { Hammer } from 'lucide-react';
 import { getPawnIcon, getCropIcon, getMapStructureIcon, getOverlayIcon } from '../utils/iconUtils';
+import { useGame } from '../store/gameStore';
 
 interface GameMapProps {
     structures: Structure[];
@@ -43,39 +45,69 @@ const GameMap = forwardRef<HTMLDivElement, GameMapProps>(({
     queuedTargets
 }, ref) => {
 
-
+    const { state } = useGame();
+    const { terrain } = state;
     const cursorClass = commandMode ? 'cursor-crosshair' : (buildPreview ? 'cursor-cell' : 'cursor-auto');
+
+    // Sort structures by layer for correct Z-index rendering
+    const sortedStructures = [...structures].sort((a, b) => {
+        const layerA = STRUCTURES[a.type]?.layer || 0;
+        const layerB = STRUCTURES[b.type]?.layer || 0;
+        return layerA - layerB;
+    });
 
     return (
         <div ref={ref} className={`overflow-auto flex-1 bg-stone-900 flex justify-center items-center p-8 ${cursorClass}`}>
             <div
-                className="relative bg-[#3a4a35] shadow-2xl border-4 border-stone-700"
+                className="relative shadow-2xl border-4 border-stone-700 bg-black"
                 style={mapStyle}
                 onMouseLeave={() => setHoverPos(null)}
                 onMouseDown={onMouseDown}
             >
-                {/* Grid Lines (CSS Background for performance) */}
+                {/* 1. Terrain Layer (Layer 0) */}
+                {Array.from({ length: MAP_SIZE * MAP_SIZE }).map((_, i) => {
+                    const x = i % MAP_SIZE;
+                    const y = Math.floor(i / MAP_SIZE);
+                    const tType = terrain[i];
+                    const tDef = TERRAIN_DEFINITIONS[tType];
+                    
+                    return (
+                        <div
+                            key={`tile-${i}`}
+                            className={`absolute transition-colors ${tDef.color}`}
+                            style={{
+                                left: x * TILE_SIZE,
+                                top: y * TILE_SIZE,
+                                width: TILE_SIZE,
+                                height: TILE_SIZE,
+                            }}
+                        />
+                    );
+                })}
+
+                {/* Grid Overlay */}
                 <div
-                    className="absolute inset-0 pointer-events-none opacity-20"
+                    className="absolute inset-0 pointer-events-none opacity-10"
                     style={{
                         backgroundImage: `linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)`,
                         backgroundSize: `${TILE_SIZE}px ${TILE_SIZE}px`
                     }}
                 />
 
-                {/* Interactive Layer */}
+                {/* Interactive Hitbox Layer (Invisible, on top of terrain, below structures) */}
                 {Array.from({ length: MAP_SIZE * MAP_SIZE }).map((_, i) => {
                     const x = i % MAP_SIZE;
                     const y = Math.floor(i / MAP_SIZE);
                     return (
                         <div
-                            key={`${x}-${y}`}
-                            className="absolute hover:bg-white/10 transition-colors"
+                            key={`hitbox-${i}`}
+                            className="absolute hover:bg-white/10"
                             style={{
                                 left: x * TILE_SIZE,
                                 top: y * TILE_SIZE,
                                 width: TILE_SIZE,
                                 height: TILE_SIZE,
+                                zIndex: 5 
                             }}
                             onClick={() => onTileClick(x, y)}
                             onMouseEnter={() => onTileEnter(x, y)}
@@ -83,8 +115,8 @@ const GameMap = forwardRef<HTMLDivElement, GameMapProps>(({
                     );
                 })}
 
-                {/* Structures */}
-                {structures.map(struct => {
+                {/* 2. Structures (Layer 1 - 5) */}
+                {sortedStructures.map(struct => {
                     const def = STRUCTURES[struct.type];
                     if (!def) return null;
                     const isSelected = selectedStructureId === struct.id;
@@ -92,15 +124,21 @@ const GameMap = forwardRef<HTMLDivElement, GameMapProps>(({
                     // Calculate scale based on growth for natural structures
                     let scale = 1;
                     if ((struct.type === 'TREE' || struct.type === 'BERRY_BUSH') && struct.growth !== undefined) {
-                        // Map 0-100 to 0.4-1.0 scale
                         scale = 0.4 + (struct.growth / 100) * 0.6;
                     }
+                    
+                    // Z-Index strategy: Base z-index on layer + Y position for slight depth sorting
+                    // Layer 1 (Floors) should stay below Layer 5
+                    // Layer 5 structures should sort by Y to fake 3D occlusion
+                    const baseZ = def.layer * 10; 
+                    const depthZ = def.layer === 5 ? struct.y : 0; 
+                    const finalZ = baseZ + depthZ;
 
                     return (
                         <div
                             key={struct.id}
                             className={`absolute flex items-center justify-center transition-all pointer-events-none
-                        ${def.color} ${isSelected ? 'border-4 border-white z-10' : 'border border-stone-800'}
+                        ${def.color} ${isSelected ? 'border-4 border-white' : (def.layer === 5 ? 'border border-stone-800' : '')}
                         ${struct.isBlueprint ? 'opacity-60 border-2 border-dashed border-blue-300' : ''}
                     `}
                             style={{
@@ -108,7 +146,8 @@ const GameMap = forwardRef<HTMLDivElement, GameMapProps>(({
                                 top: struct.y * TILE_SIZE,
                                 width: def.width * TILE_SIZE,
                                 height: def.height * TILE_SIZE,
-                                transform: `scale(${scale})`, // Apply growth scaling
+                                transform: `scale(${scale})`,
+                                zIndex: finalZ
                             }}
                         >
                             {/* Icons */}
@@ -148,7 +187,7 @@ const GameMap = forwardRef<HTMLDivElement, GameMapProps>(({
                     );
                 })}
 
-                {/* Pawns */}
+                {/* Pawns (Z-Index above everything usually, or sorted with objects) */}
                 {pawns.map(pawn => {
                     const isSelected = selectedPawnId === pawn.id;
                     const isDead = pawn.status === 'Dead';
@@ -157,14 +196,15 @@ const GameMap = forwardRef<HTMLDivElement, GameMapProps>(({
                             key={pawn.id}
                             className={`absolute rounded-full flex items-center justify-center shadow-lg transition-all duration-300 ease-linear pointer-events-none
                         ${isDead ? 'bg-gray-700 grayscale' : pawn.color} 
-                        ${isSelected ? 'ring-4 ring-yellow-400 z-30 scale-110' : 'z-20'}
+                        ${isSelected ? 'ring-4 ring-yellow-400 scale-110' : ''}
                     `}
                             style={{
                                 left: pawn.x * TILE_SIZE,
                                 top: pawn.y * TILE_SIZE,
                                 width: TILE_SIZE * 0.8,
                                 height: TILE_SIZE * 0.8,
-                                transform: 'translate(10%, 10%)' // Center in tile
+                                transform: 'translate(10%, 10%)',
+                                zIndex: 100 // Always on top for now
                             }}
                         >
                             <div className="flex flex-col items-center">
@@ -186,6 +226,7 @@ const GameMap = forwardRef<HTMLDivElement, GameMapProps>(({
                             top: hoverPos.y * TILE_SIZE,
                             width: buildPreview.width * TILE_SIZE,
                             height: buildPreview.height * TILE_SIZE,
+                            zIndex: 200
                         }}
                     />
                 )}
@@ -193,7 +234,7 @@ const GameMap = forwardRef<HTMLDivElement, GameMapProps>(({
                 {/* Command Selection Box */}
                 {dragStart && hoverPos && commandMode && (
                     <div
-                        className={`absolute border-2 z-50 pointer-events-none opacity-50
+                        className={`absolute border-2 z-[200] pointer-events-none opacity-50
                     ${commandMode === 'HARVEST' ? 'bg-green-500/30 border-green-300' : ''}
                     ${commandMode === 'CHOP' ? 'bg-orange-500/30 border-orange-300' : ''}
                     ${commandMode === 'MINE' ? 'bg-stone-500/30 border-stone-300' : ''}
