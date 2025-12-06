@@ -1,10 +1,12 @@
 
+
+
 import React, { useState } from 'react';
 import { STRUCTURES } from '../constants';
 import { useGame } from '../store/gameStore';
-import { Activity, Briefcase, Construction, Sprout, Axe, Pickaxe, Scissors, CheckCircle } from 'lucide-react';
+import { Activity, Briefcase, Construction, Sprout, Axe, Pickaxe, Scissors, CheckCircle, Home, LayoutGrid } from 'lucide-react';
 import PawnDetails from './PawnDetails';
-import { StructureDefinition, SkillType } from '../types';
+import { StructureDefinition, SkillType, Preset } from '../types';
 import { CONSTRUCT_ACTIVITY_ID, HARVEST_ACTIVITY_ID } from '../constants';
 import { getUiStructureIcon } from '../utils/iconUtils';
 
@@ -12,9 +14,45 @@ interface SidebarProps {
   onGeneratePawn: () => void;
 }
 
+const PRESETS: Preset[] = [
+    {
+        name: "Small Cottage",
+        width: 5,
+        height: 6,
+        items: [
+            // Walls Top
+            {x:0,y:0,type:'WOOD_WALL'}, {x:1,y:0,type:'WOOD_WALL'}, {x:2,y:0,type:'WOOD_WALL'}, {x:3,y:0,type:'WOOD_WALL'}, {x:4,y:0,type:'WOOD_WALL'},
+            // Walls Bottom
+            {x:0,y:5,type:'WOOD_WALL'}, {x:1,y:5,type:'WOOD_WALL'}, {x:2,y:5,type:'WOOD_DOOR'}, {x:3,y:5,type:'WOOD_WALL'}, {x:4,y:5,type:'WOOD_WALL'},
+            // Walls Left
+            {x:0,y:1,type:'WOOD_WALL'}, {x:0,y:2,type:'WOOD_WALL'}, {x:0,y:3,type:'WOOD_WALL'}, {x:0,y:4,type:'WOOD_WALL'},
+            // Walls Right
+            {x:4,y:1,type:'WOOD_WALL'}, {x:4,y:2,type:'WOOD_WALL'}, {x:4,y:3,type:'WOOD_WALL'}, {x:4,y:4,type:'WOOD_WALL'},
+            // Bed (1x2)
+            {x:1,y:1,type:'BED'},
+            // Chest
+            {x:3,y:1,type:'CHEST'},
+            // Table (2x1)
+            {x:1,y:3,type:'TABLE'},
+            // Chairs
+            {x:1,y:4,type:'CHAIR'}, {x:2,y:4,type:'CHAIR'}
+        ]
+    },
+    {
+        name: "Potato Farm (5x5)",
+        width: 5,
+        height: 5,
+        items: Array.from({length: 25}, (_, i) => ({
+            x: i % 5,
+            y: Math.floor(i / 5),
+            type: 'FARM_PLOT'
+        }))
+    }
+];
+
 const Sidebar: React.FC<SidebarProps> = ({ onGeneratePawn }) => {
   const { state, dispatch } = useGame();
-  const { selectedPawnId, selectedStructureId, buildMode, commandMode, isGeneratingPawn, pawns, structures } = state;
+  const { selectedPawnId, selectedStructureId, buildMode, presetMode, commandMode, isGeneratingPawn, pawns, structures } = state;
 
   const [repeatCount, setRepeatCount] = useState<number>(1);
 
@@ -25,19 +63,17 @@ const Sidebar: React.FC<SidebarProps> = ({ onGeneratePawn }) => {
   const handleSetBuildMode = (def: StructureDefinition | null) => {
       dispatch({ type: 'SET_BUILD_MODE', def });
   };
+  
+  const handleSetPresetMode = (preset: Preset | null) => {
+      dispatch({ type: 'SET_PRESET_MODE', preset });
+  };
 
   const handleSetCommandMode = (mode: 'HARVEST' | 'CHOP' | 'MINE' | null) => {
       dispatch({ type: 'SET_COMMAND_MODE', mode });
   };
 
   const handleOrderJob = (structureId: string, activityId: string, count: number) => {
-      dispatch({ 
-          type: 'ORDER_JOB', 
-          pawnId: selectedPawnId, 
-          structureId, 
-          activityId, 
-          count 
-      });
+      dispatch({ type: 'ORDER_JOB', pawnId: selectedPawnId, structureId, activityId, count });
   };
 
   return (
@@ -94,9 +130,28 @@ const Sidebar: React.FC<SidebarProps> = ({ onGeneratePawn }) => {
                 Mine
               </button>
           </div>
-          <p className="text-[10px] text-gray-500 mt-2 text-center italic">
-              Select an order and drag across the map to tag objects.
-          </p>
+        </section>
+
+        {/* Presets Menu */}
+        <section>
+            <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Blueprints</h2>
+            <div className="grid grid-cols-2 gap-2">
+                {PRESETS.map(preset => (
+                    <button
+                        key={preset.name}
+                        onClick={() => handleSetPresetMode(presetMode?.name === preset.name ? null : preset)}
+                        className={`p-3 rounded border text-xs font-medium flex flex-col items-center gap-2 transition-all
+                            ${presetMode?.name === preset.name
+                                ? 'bg-indigo-600 border-indigo-400 text-white shadow-lg scale-105'
+                                : 'bg-gray-700 border-gray-600 text-gray-300 hover:bg-gray-600'
+                            }
+                        `}
+                    >
+                        {preset.name.includes('Cottage') ? <Home size={20} /> : <LayoutGrid size={20} />}
+                        {preset.name}
+                    </button>
+                ))}
+            </div>
         </section>
 
         {/* Build Menu */}

@@ -1,7 +1,8 @@
 
 
+
 import React, { createContext, useContext, useReducer, ReactNode, Dispatch } from 'react';
-import { Pawn, Structure, Job, LogEntry, StructureDefinition, SkillType, TerrainType } from '../types';
+import { Pawn, Structure, Job, LogEntry, StructureDefinition, SkillType, TerrainType, Preset } from '../types';
 import { INITIAL_PAWNS, JOY_DURATION_TICKS, CONSTRUCT_ACTIVITY_ID, STRUCTURES, NATURAL_SPAWN_CHANCE, MAP_SIZE } from '../constants';
 import { generateInitialStructures, findBatchTargets, generateTerrain } from '../utils/mapUtils';
 import { processPawns, assignJobToPawn } from '../systems/pawnLogic';
@@ -19,6 +20,7 @@ export interface GameState {
   selectedPawnId: string | null;
   selectedStructureId: string | null;
   buildMode: StructureDefinition | null;
+  presetMode: Preset | null;
   commandMode: 'HARVEST' | 'CHOP' | 'MINE' | null;
   isGeneratingPawn: boolean;
 }
@@ -29,9 +31,11 @@ export type GameAction =
   | { type: 'SELECT_PAWN'; pawnId: string | null }
   | { type: 'SELECT_STRUCTURE'; structureId: string | null }
   | { type: 'SET_BUILD_MODE'; def: StructureDefinition | null }
+  | { type: 'SET_PRESET_MODE'; preset: Preset | null }
   | { type: 'SET_COMMAND_MODE'; mode: 'HARVEST' | 'CHOP' | 'MINE' | null }
   | { type: 'ADD_LOG'; message: string; severity?: 'info' | 'success' | 'warning' | 'error' }
   | { type: 'BUILD_STRUCTURE'; x: number; y: number }
+  | { type: 'PLACE_PRESET'; x: number; y: number }
   | { type: 'ORDER_JOB'; pawnId: string | null; structureId: string; activityId: string; count: number }
   | { type: 'BATCH_ORDER'; jobs: Job[] }
   | { type: 'MOVE_PAWN'; pawnId: string; x: number; y: number }
@@ -66,6 +70,7 @@ const initialState: GameState = {
   selectedPawnId: null,
   selectedStructureId: null,
   buildMode: null,
+  presetMode: null,
   commandMode: null,
   isGeneratingPawn: false
 };
@@ -133,6 +138,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           selectedPawnId: action.pawnId, 
           selectedStructureId: null,
           buildMode: null,
+          presetMode: null,
           commandMode: null
       };
 
@@ -142,14 +148,18 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           selectedStructureId: action.structureId, 
           selectedPawnId: null,
           buildMode: null,
+          presetMode: null,
           commandMode: null
       };
 
     case 'SET_BUILD_MODE':
-      return { ...state, buildMode: action.def, commandMode: null, selectedPawnId: null, selectedStructureId: null };
+      return { ...state, buildMode: action.def, presetMode: null, commandMode: null, selectedPawnId: null, selectedStructureId: null };
+
+    case 'SET_PRESET_MODE':
+      return { ...state, presetMode: action.preset, buildMode: null, commandMode: null, selectedPawnId: null, selectedStructureId: null };
 
     case 'SET_COMMAND_MODE':
-      return { ...state, commandMode: action.mode, buildMode: null, selectedPawnId: null, selectedStructureId: null };
+      return { ...state, commandMode: action.mode, buildMode: null, presetMode: null, selectedPawnId: null, selectedStructureId: null };
 
     case 'ADD_LOG':
       return { 
@@ -197,6 +207,61 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             structures: [...state.structures, newStruct],
             globalJobQueue: [...state.globalJobQueue, newJob],
             logs: [...state.logs.slice(-49), createLog(`Placed & queued ${state.buildMode.name}`)]
+        };
+    }
+
+    case 'PLACE_PRESET': {
+        if (!state.presetMode) return state;
+        const { x, y } = action;
+        const newStructures = [...state.structures];
+        const newJobs = [...state.globalJobQueue];
+        const newLogs = [...state.logs];
+
+        state.presetMode.items.forEach(item => {
+            const worldX = x + item.x;
+            const worldY = y + item.y;
+            
+            // Bounds check
+            if (worldX < 0 || worldX >= MAP_SIZE || worldY < 0 || worldY >= MAP_SIZE) return;
+
+            const def = STRUCTURES[item.type];
+            if (!def) return;
+
+            // Collision Check (Simple: No structure on same layer at origin)
+            // Note: Does not perfectly handle multi-tile structures collision yet, but good enough for MVP
+            const occupied = newStructures.some(s => 
+                s.x === worldX && s.y === worldY && STRUCTURES[s.type].layer === def.layer
+            );
+            
+            // Terrain Check
+            const t = state.terrain[worldY * MAP_SIZE + worldX];
+            const invalidTerrain = t === TerrainType.WATER_DEEP || t === TerrainType.LAVA;
+
+            if (!occupied && !invalidTerrain) {
+                 const newStruct: Structure = {
+                    id: `struct-${item.type}-${Date.now()}-${Math.random()}`,
+                    type: item.type,
+                    x: worldX,
+                    y: worldY,
+                    inventory: [],
+                    isBlueprint: true 
+                };
+                newStructures.push(newStruct);
+                newJobs.push({
+                    id: `job-construct-${newStruct.id}`,
+                    type: 'WORK',
+                    targetStructureId: newStruct.id,
+                    activityId: CONSTRUCT_ACTIVITY_ID,
+                    activityRepeats: 1
+                });
+            }
+        });
+
+        return {
+            ...state,
+            structures: newStructures,
+            globalJobQueue: newJobs,
+            logs: [...newLogs.slice(-49), createLog(`Placed preset: ${state.presetMode.name}`, 'success')]
         };
     }
 

@@ -1,4 +1,5 @@
 
+
 import { StructureDefinition, SkillType, Pawn, TerrainType } from './types';
 
 export const MAP_SIZE = 25;
@@ -135,6 +136,71 @@ export const STRUCTURES: Record<string, StructureDefinition> = {
     passable: false,
     cost: [{ itemName: 'Steel', amount: 5 }],
     activities: []
+  },
+  WOOD_DOOR: {
+    type: 'WOOD_DOOR',
+    name: 'Wood Door',
+    width: 1,
+    height: 1,
+    color: 'bg-amber-600',
+    layer: 5,
+    passable: true,
+    walkSpeedMultiplier: 0.8,
+    cost: [{ itemName: 'Wood', amount: 5 }],
+    activities: []
+  },
+  BED: {
+    type: 'BED',
+    name: 'Bed',
+    width: 1,
+    height: 2, // Vertical
+    color: 'bg-blue-700',
+    layer: 5,
+    passable: true,
+    walkSpeedMultiplier: 0.6,
+    cost: [{ itemName: 'Wood', amount: 20 }],
+    activities: [
+        {
+            id: 'sleep_in_bed',
+            name: 'Sleep',
+            actionType: 'RECREATION',
+            requiredSkill: SkillType.CONSTRUCTION,
+            requiredLevel: 0,
+            durationTicks: 100
+        }
+    ]
+  },
+  TABLE: {
+    type: 'TABLE',
+    name: 'Table',
+    width: 2,
+    height: 1,
+    color: 'bg-amber-800',
+    layer: 5,
+    passable: false,
+    cost: [{ itemName: 'Wood', amount: 15 }],
+    activities: []
+  },
+  CHAIR: {
+    type: 'CHAIR',
+    name: 'Chair',
+    width: 1,
+    height: 1,
+    color: 'bg-amber-700',
+    layer: 5,
+    passable: true,
+    walkSpeedMultiplier: 0.9,
+    cost: [{ itemName: 'Wood', amount: 5 }],
+    activities: [
+        {
+            id: 'sit_in_chair',
+            name: 'Sit',
+            actionType: 'RECREATION',
+            requiredSkill: SkillType.SOCIAL,
+            requiredLevel: 0,
+            durationTicks: 50
+        }
+    ]
   },
   CAMPFIRE: {
     type: 'CAMPFIRE',

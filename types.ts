@@ -1,5 +1,6 @@
 
 
+
 export enum SkillType {
   CONSTRUCTION = 'Construction',
   COOKING = 'Cooking',
@@ -137,4 +138,11 @@ export interface LogEntry {
     timestamp: number;
     message: string;
     type: 'info' | 'success' | 'warning' | 'error';
+}
+
+export interface Preset {
+  name: string;
+  width: number;
+  height: number;
+  items: { x: number; y: number; type: string }[];
 }

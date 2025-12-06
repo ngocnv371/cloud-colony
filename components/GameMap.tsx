@@ -1,7 +1,8 @@
 
 
+
 import React, { forwardRef } from 'react';
-import { Structure, Pawn, StructureDefinition } from '../types';
+import { Structure, Pawn, StructureDefinition, Preset } from '../types';
 import { STRUCTURES, MAP_SIZE, TERRAIN_DEFINITIONS } from '../constants';
 import { Hammer } from 'lucide-react';
 import { getPawnIcon, getCropIcon, getMapStructureIcon, getOverlayIcon } from '../utils/iconUtils';
@@ -46,8 +47,8 @@ const GameMap = forwardRef<HTMLDivElement, GameMapProps>(({
 }, ref) => {
 
     const { state } = useGame();
-    const { terrain } = state;
-    const cursorClass = commandMode ? 'cursor-crosshair' : (buildPreview ? 'cursor-cell' : 'cursor-auto');
+    const { terrain, presetMode } = state;
+    const cursorClass = commandMode ? 'cursor-crosshair' : (buildPreview || presetMode ? 'cursor-cell' : 'cursor-auto');
 
     // Sort structures by layer for correct Z-index rendering
     const sortedStructures = [...structures].sort((a, b) => {
@@ -229,6 +230,27 @@ const GameMap = forwardRef<HTMLDivElement, GameMapProps>(({
                             zIndex: 200
                         }}
                     />
+                )}
+
+                {/* Preset Preview */}
+                {presetMode && hoverPos && (
+                    <div className="absolute pointer-events-none z-[200]">
+                        {presetMode.items.map((item, i) => {
+                             const def = STRUCTURES[item.type];
+                             return (
+                                 <div
+                                    key={i}
+                                    className={`absolute opacity-40 border border-dashed border-white ${def?.color || 'bg-white'}`}
+                                    style={{
+                                        left: (hoverPos.x + item.x) * TILE_SIZE,
+                                        top: (hoverPos.y + item.y) * TILE_SIZE,
+                                        width: (def?.width || 1) * TILE_SIZE,
+                                        height: (def?.height || 1) * TILE_SIZE,
+                                    }}
+                                 />
+                             );
+                        })}
+                    </div>
                 )}
 
                 {/* Command Selection Box */}

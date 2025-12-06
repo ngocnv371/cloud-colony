@@ -1,4 +1,6 @@
 
+
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import GameMap from './components/GameMap';
 import Sidebar from './components/Sidebar';
@@ -100,6 +102,12 @@ const App: React.FC = () => {
 
   // --- Handlers ---
   const handleTileClick = (x: number, y: number) => {
+    // 0. Preset Mode
+    if (state.presetMode) {
+        dispatch({ type: 'PLACE_PRESET', x, y });
+        return;
+    }
+
     // 1. Build Mode
     if (state.buildMode) {
         dispatch({ type: 'BUILD_STRUCTURE', x, y });
@@ -169,7 +177,7 @@ const App: React.FC = () => {
   };
 
   const handleMouseDown = () => {
-      if (state.buildMode || state.commandMode) {
+      if (state.buildMode || state.commandMode || state.presetMode) {
           setIsDragging(true);
           setDragStart(hoverPos);
       }

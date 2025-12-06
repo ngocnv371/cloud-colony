@@ -1,9 +1,8 @@
-
 import React from 'react';
 import { 
   UserRound, Hammer, Utensils, Box, Brain, TreeDeciduous, Grape, Sprout, Wheat, Carrot, 
   Mountain, Axe, Pickaxe, Scissors, Gamepad2, Swords, Moon, Footprints, Skull, 
-  BrickWall, Flame, Coins, Drumstick, Square
+  BrickWall, Flame, Coins, Drumstick, Square, Bed, DoorOpen, Armchair, RectangleHorizontal
 } from 'lucide-react';
 import { Pawn, Structure, StructureDefinition } from '../types';
 
@@ -51,6 +50,10 @@ export const getMapStructureIcon = (struct: Structure) => {
         case 'SILVER_VEIN': return <Mountain size={28} className="text-gray-200 opacity-90 drop-shadow-[0_0_5px_rgba(255,255,255,0.5)]" />;
         case 'GOLD_VEIN': return <Mountain size={28} className="text-yellow-400 opacity-90 drop-shadow-[0_0_5px_rgba(250,204,21,0.5)]" />;
         case 'URANIUM_VEIN': return <Mountain size={28} className="text-emerald-400 opacity-90 drop-shadow-[0_0_5px_rgba(52,211,153,0.5)]" />;
+        case 'WOOD_DOOR': return <DoorOpen size={24} className="text-amber-900 opacity-90" />;
+        case 'BED': return <Bed size={24} className="text-white opacity-80" />;
+        case 'TABLE': return <RectangleHorizontal size={24} className="text-white opacity-80" />;
+        case 'CHAIR': return <Armchair size={18} className="text-white opacity-80" />;
         default: return null;
     }
 };
@@ -69,6 +72,10 @@ export const getUiStructureIcon = (def: StructureDefinition) => {
         case 'WOODEN_POLE': return <Swords size={size} className="text-amber-300" />;
         case 'CHEST': return <Box size={size} className="text-amber-700" />;
         case 'FARM_PLOT': return <Sprout size={size} className="text-green-500" />;
+        case 'WOOD_DOOR': return <DoorOpen size={size} className="text-amber-600" />;
+        case 'BED': return <Bed size={size} className="text-blue-500" />;
+        case 'TABLE': return <RectangleHorizontal size={size} className="text-amber-800" />;
+        case 'CHAIR': return <Armchair size={size} className="text-amber-700" />;
         default: return <Square size={size} className="text-gray-500" />;
     }
 };
