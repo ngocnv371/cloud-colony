@@ -41,7 +41,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onGeneratePawn }) => {
   };
 
   return (
-    <div className="w-96 bg-gray-800 border-l border-gray-700 flex flex-col h-full overflow-hidden shadow-xl z-30">
+    <div className="w-96 bg-gray-800 border-l border-gray-700 flex flex-col h-full overflow-hidden shadow-xl z-[500]">
         
       {/* Header */}
       <div className="p-4 bg-gray-900 border-b border-gray-700">

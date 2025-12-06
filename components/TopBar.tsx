@@ -13,7 +13,7 @@ const TopBar: React.FC<TopBarProps> = ({ onSelectPawn }) => {
   const { pawns, selectedPawnId } = state;
 
   return (
-    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 flex gap-2 p-2 bg-gray-900/80 backdrop-blur-md border border-gray-700 rounded-lg shadow-xl overflow-x-auto max-w-[60vw] no-scrollbar">
+    <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[500] flex gap-2 p-2 bg-gray-900/80 backdrop-blur-md border border-gray-700 rounded-lg shadow-xl overflow-x-auto max-w-[60vw] no-scrollbar">
       {pawns.map(pawn => {
         const isSelected = selectedPawnId === pawn.id;
         const isDead = pawn.status === 'Dead';

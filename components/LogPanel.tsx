@@ -14,7 +14,7 @@ const LogPanel: React.FC = () => {
     }, [logs]);
 
     return (
-        <div className="absolute bottom-4 left-4 w-96 h-48 bg-gray-900/90 border border-gray-700 rounded-lg shadow-xl flex flex-col pointer-events-auto z-40 backdrop-blur-sm">
+        <div className="absolute bottom-4 left-4 w-96 h-48 bg-gray-900/90 border border-gray-700 rounded-lg shadow-xl flex flex-col pointer-events-auto z-[500] backdrop-blur-sm">
             <div className="px-3 py-2 bg-gray-800 border-b border-gray-700 rounded-t-lg flex justify-between items-center">
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Event Log</span>
                 <span className="text-[10px] text-gray-500">{logs.length} events</span>

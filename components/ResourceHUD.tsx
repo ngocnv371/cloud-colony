@@ -23,7 +23,7 @@ const ResourceHUD: React.FC = () => {
 
 
   return (
-    <div className="absolute top-4 left-4 bg-gray-900/80 backdrop-blur-md border border-gray-700 p-3 rounded-lg shadow-xl z-40 pointer-events-none min-w-[180px] select-none transition-all duration-300">
+    <div className="absolute top-4 left-4 bg-gray-900/80 backdrop-blur-md border border-gray-700 p-3 rounded-lg shadow-xl z-[500] pointer-events-none min-w-[180px] select-none transition-all duration-300">
       <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 border-b border-gray-700 pb-1 flex justify-between items-center">
           <span className="flex items-center gap-1"><Database size={10} /> Colony Storage</span>
       </h3>
